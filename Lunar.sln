@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lunar", "Lunar\Lunar.csproj", "{D60A90AF-1364-49BE-8817-5739E0A56D72}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lunar.Tests", "Lunar.Tests\Lunar.Tests.csproj", "{BDF5DECD-9C29-4756-9F2E-8A942446855B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D60A90AF-1364-49BE-8817-5739E0A56D72}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D60A90AF-1364-49BE-8817-5739E0A56D72}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D60A90AF-1364-49BE-8817-5739E0A56D72}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D60A90AF-1364-49BE-8817-5739E0A56D72}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BDF5DECD-9C29-4756-9F2E-8A942446855B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BDF5DECD-9C29-4756-9F2E-8A942446855B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BDF5DECD-9C29-4756-9F2E-8A942446855B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BDF5DECD-9C29-4756-9F2E-8A942446855B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>netcoreapp3.1</TargetFramework>
+        <Nullable>enable</Nullable>
+        <Authors>Dewera</Authors>
+        <Description>A lightweight native DLL mapping library that supports mapping directly from memory</Description>
+        <RepositoryUrl>https://github.com/Dewera/Lunar</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+    </PropertyGroup>
+
+    <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+      <DocumentationFile>bin\Release\Lunar.xml</DocumentationFile>
+    </PropertyGroup>
+
+</Project>

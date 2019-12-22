@@ -1,0 +1,14 @@
+using System.Runtime.InteropServices;
+
+namespace Pluto.Native.Structures
+{
+    [StructLayout(LayoutKind.Explicit)]
+    internal readonly struct ApiSetNamespace
+    {
+        [FieldOffset(0x0C)]
+        internal readonly int Count;
+
+        [FieldOffset(0x10)]
+        internal readonly int EntryOffset;
+    }
+}
