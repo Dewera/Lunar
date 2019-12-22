@@ -1,0 +1,12 @@
+name: Continuous Integration
+
+on: [push]
+
+jobs:
+  pipeline:
+    runs-on: [windows-latest]
+
+    steps:
+      - uses: actions/checkout@master
+      - name: Build Library
+        run: dotnet build --configuration Release
