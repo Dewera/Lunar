@@ -23,6 +23,8 @@ A lightweight native DLL mapping library that supports mapping directly from mem
 
 - Install the latest version of Lunar using [NuGet](https://www.nuget.org/packages/Lunar)
 
+----
+
 ### Getting started
 
 The example below demonstrates a basic implementation of the library
