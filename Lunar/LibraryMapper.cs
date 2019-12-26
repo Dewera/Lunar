@@ -7,16 +7,16 @@ using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
-using Pluto.Native.Enumerations;
-using Pluto.Native.PInvoke;
-using Pluto.Native.Structures;
-using Pluto.PortableExecutable;
-using Pluto.RemoteProcess;
-using Pluto.Symbol;
+using Lunar.Native.Enumerations;
+using Lunar.Native.PInvoke;
+using Lunar.Native.Structures;
+using Lunar.PortableExecutable;
+using Lunar.RemoteProcess;
+using Lunar.Symbol;
 
 [assembly: CLSCompliant(true)]
 
-namespace Pluto
+namespace Lunar
 {
     /// <summary>
     /// Provides the functionality to map a DLL from disk or memory into a remote process

@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace Pluto.Native.Structures
+namespace Lunar.Native.Structures
 {
     [StructLayout(LayoutKind.Explicit, Size = 48)]
     internal readonly struct ProcessBasicInformation

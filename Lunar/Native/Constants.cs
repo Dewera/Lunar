@@ -1,4 +1,4 @@
-namespace Pluto.Native
+namespace Lunar.Native
 {
     internal static class Constants
     {

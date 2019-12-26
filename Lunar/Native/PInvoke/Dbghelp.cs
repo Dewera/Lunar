@@ -1,10 +1,10 @@
 using System;
 using System.Runtime.InteropServices;
+using Lunar.Native.Enumerations;
+using Lunar.Native.Structures;
 using Microsoft.Win32.SafeHandles;
-using Pluto.Native.Enumerations;
-using Pluto.Native.Structures;
 
-namespace Pluto.Native.PInvoke
+namespace Lunar.Native.PInvoke
 {
     internal static class Dbghelp
     {

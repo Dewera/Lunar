@@ -1,4 +1,4 @@
-namespace Pluto.Native.Enumerations
+namespace Lunar.Native.Enumerations
 {
     internal enum NtStatus
     {

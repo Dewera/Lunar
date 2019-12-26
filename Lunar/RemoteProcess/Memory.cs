@@ -2,11 +2,11 @@ using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Lunar.Native.Enumerations;
+using Lunar.Native.PInvoke;
 using Microsoft.Win32.SafeHandles;
-using Pluto.Native.Enumerations;
-using Pluto.Native.PInvoke;
 
-namespace Pluto.RemoteProcess
+namespace Lunar.RemoteProcess
 {
     internal sealed class Memory
     {

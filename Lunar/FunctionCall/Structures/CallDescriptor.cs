@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace Pluto.FunctionCall.Structures
+namespace Lunar.FunctionCall.Structures
 {
     internal sealed class CallDescriptor
     {

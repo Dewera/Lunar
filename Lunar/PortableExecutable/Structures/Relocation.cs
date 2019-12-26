@@ -1,6 +1,6 @@
-using Pluto.Native.Enumerations;
+using Lunar.Native.Enumerations;
 
-namespace Pluto.PortableExecutable.Structures
+namespace Lunar.PortableExecutable.Structures
 {
     internal sealed class Relocation
     {

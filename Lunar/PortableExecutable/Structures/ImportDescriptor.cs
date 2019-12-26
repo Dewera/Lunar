@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Pluto.PortableExecutable.Structures
+namespace Lunar.PortableExecutable.Structures
 {
     internal sealed class ImportDescriptor
     {

@@ -6,12 +6,12 @@ using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
-using Pluto.Native;
-using Pluto.Native.Enumerations;
-using Pluto.Native.Structures;
-using Pluto.PortableExecutable.Structures;
+using Lunar.Native;
+using Lunar.Native.Enumerations;
+using Lunar.Native.Structures;
+using Lunar.PortableExecutable.Structures;
 
-namespace Pluto.PortableExecutable
+namespace Lunar.PortableExecutable
 {
     internal sealed class PeImage
     {

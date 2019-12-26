@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Pluto.Native.Structures
+namespace Lunar.Native.Structures
 {
     [StructLayout(LayoutKind.Explicit, Size = 88)]
     internal struct SymbolInfo

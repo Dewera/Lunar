@@ -1,6 +1,6 @@
 using System;
 
-namespace Pluto.Native.Enumerations
+namespace Lunar.Native.Enumerations
 {
     [Flags]
     internal enum SymbolOptions

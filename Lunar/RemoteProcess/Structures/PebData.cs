@@ -1,6 +1,6 @@
 using System;
 
-namespace Pluto.RemoteProcess.Structures
+namespace Lunar.RemoteProcess.Structures
 {
     internal sealed class PebData
     {

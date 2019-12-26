@@ -7,6 +7,7 @@
         <Description>A lightweight native DLL mapping library that supports mapping directly from memory</Description>
         <RepositoryUrl>https://github.com/Dewera/Lunar</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
+        <PackageVersion>1.0.1</PackageVersion>
     </PropertyGroup>
 
     <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">

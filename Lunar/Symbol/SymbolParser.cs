@@ -8,14 +8,14 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Pluto.Native;
-using Pluto.Native.Enumerations;
-using Pluto.Native.PInvoke;
-using Pluto.Native.Structures;
-using Pluto.PortableExecutable;
-using Pluto.RemoteProcess.Structures;
+using Lunar.Native;
+using Lunar.Native.Enumerations;
+using Lunar.Native.PInvoke;
+using Lunar.Native.Structures;
+using Lunar.PortableExecutable;
+using Lunar.RemoteProcess.Structures;
 
-namespace Pluto.Symbol
+namespace Lunar.Symbol
 {
     internal sealed class SymbolParser
     {

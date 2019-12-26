@@ -1,7 +1,7 @@
+using Lunar.Native.PInvoke;
 using Microsoft.Win32.SafeHandles;
-using Pluto.Native.PInvoke;
 
-namespace Pluto.Native.SafeHandle
+namespace Lunar.Native.SafeHandle
 {
     internal sealed class SafeThreadHandle : SafeHandleZeroOrMinusOneIsInvalid
     {

@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using Xunit;
 
-namespace Pluto.Tests
+namespace Lunar.Tests
 {
     public sealed class X64Tests : IDisposable
     {
