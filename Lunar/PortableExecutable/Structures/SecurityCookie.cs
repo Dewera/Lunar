@@ -4,13 +4,9 @@ namespace Lunar.PortableExecutable.Structures
     {
         internal int Offset { get; }
 
-        internal byte[] Value { get; }
-
-        internal SecurityCookie(int offset, byte[] value)
+        internal SecurityCookie(int offset)
         {
             Offset = offset;
-
-            Value = value;
         }
     }
 }

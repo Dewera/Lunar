@@ -239,9 +239,41 @@ namespace Lunar
                 return;
             }
 
+            // Generate a randomised security cookie, ensuring the default security cookie value is not generated
+
+            byte[] securityCookieBytes;
+
+            if (_processManager.IsWow64)
+            {
+                securityCookieBytes = new byte[4];
+
+                new Random().NextBytes(securityCookieBytes);
+
+                if (securityCookieBytes.SequenceEqual(new byte[] {0xBB, 0x40, 0xE6, 0x4E}))
+                {
+                    securityCookieBytes[3] += 1;
+                }
+            }
+
+            else
+            {
+                var partialSecurityCookieBytes = new byte[6];
+
+                new Random().NextBytes(partialSecurityCookieBytes);
+
+                if (partialSecurityCookieBytes.SequenceEqual(new byte[] {0x2B, 0x99, 0x2D, 0xDF, 0xA2, 0x32}))
+                {
+                    partialSecurityCookieBytes[5] += 1;
+                }
+
+                securityCookieBytes = new byte[8];
+
+                partialSecurityCookieBytes.CopyTo(securityCookieBytes, 0);
+            }
+
             // Write the security cookie into the remote process
 
-            _processManager.Memory.Write(DllBaseAddress + _peImage.SecurityCookie.Offset, _peImage.SecurityCookie.Value);
+            _processManager.Memory.Write(DllBaseAddress + _peImage.SecurityCookie.Offset, securityCookieBytes);
         }
 
         private void LoadDependencies()

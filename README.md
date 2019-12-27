@@ -11,11 +11,11 @@ A lightweight native DLL mapping library that supports mapping directly from mem
 - WOW64 and x64 support
 - Imports and delay imports are resolved
 - Relocations are performed
-- Sections are mapped with correct memory protection
-- Headers are mapped with correct memory protection
-- TLS callbacks are called with ProcessAttach and ProcessDetach
+- Sections are mapped with the correct memory protection
+- Headers are mapped with the correct memory protection
 - Exception handling is setup for both SEH and C++ exceptions
 - Security cookie is initialised
+- Entry point and TLS callbacks are called with ProcessAttach and ProcessDetach
 
 ----
 
@@ -90,7 +90,7 @@ Unmaps the DLL from the remote process
 ### Caveats
 
 - Attempting to inject into a system level process will require your program to be run in administrator mode
-- Mapping requires the presence of a PDB for ntdll.dll, and, so, will automatically download the latest version of this PDB from the Microsoft symbol server and cache it in `%temp%/Lunar/PDB`
+- Mapping requires the presence of a PDB for ntdll.dll, and, so, the library will automatically download the latest version of this PDB from the Microsoft symbol server and cache it in `%temp%/Lunar/PDB`
 
 ----
 

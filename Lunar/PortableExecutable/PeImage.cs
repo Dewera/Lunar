@@ -75,28 +75,21 @@ namespace Lunar.PortableExecutable
 
             // Read the functions from the export table
 
-            for (var functionIndex = 0; functionIndex < exportTable.NumberOfFunctions; functionIndex ++)
+            for (var functionIndex = 0; functionIndex < exportTable.NumberOfNames; functionIndex ++)
             {
-                var functionOffset = MemoryMarshal.Read<int>(_peBytes.Slice(RvaToOffset(exportTable.AddressOfFunctions) + sizeof(int) * functionIndex).Span);
+                // Read the offset of the function
 
-                exportedFunctions.Add(new ExportedFunction("", functionOffset, (short) (exportTable.Base + functionIndex)));
-            }
+                var functionNameOrdinal = MemoryMarshal.Read<short>(_peBytes.Slice(RvaToOffset(exportTable.AddressOfNameOrdinals) + sizeof(short) * functionIndex).Span);
 
-            // Associate names with the functions
+                var functionOffset = MemoryMarshal.Read<int>(_peBytes.Slice(RvaToOffset(exportTable.AddressOfFunctions) + sizeof(int) * functionNameOrdinal).Span);
 
-            for (var functionIndex = 0; functionIndex < exportTable.NumberOfNames; functionIndex++)
-            {
                 // Read the name of the function
 
                 var functionNameOffset = RvaToOffset(MemoryMarshal.Read<int>(_peBytes.Slice(RvaToOffset(exportTable.AddressOfNames) + sizeof(int) * functionIndex).Span));
 
                 var functionName = ReadNullTerminatedString(functionNameOffset);
 
-                // Read the ordinal of the function
-
-                var functionOrdinal = exportTable.Base + MemoryMarshal.Read<short>(_peBytes.Slice(RvaToOffset(exportTable.AddressOfNameOrdinals) + sizeof(short) * functionIndex).Span);
-
-                exportedFunctions.First(exportedFunction => exportedFunction.Ordinal == functionOrdinal).Name = functionName;
+                exportedFunctions.Add(new ExportedFunction(functionName, functionOffset, exportTable.Base + functionNameOrdinal));
             }
 
             return exportedFunctions;
@@ -112,76 +105,70 @@ namespace Lunar.PortableExecutable
 
                 for (var functionIndex = 0;; functionIndex ++)
                 {
-                    // Read the thunk of the function
-
-                    var functionThunkOffset = Headers.PEHeader.Magic == PEMagic.PE32 ? descriptorThunkOffset + sizeof(int) * functionIndex : descriptorThunkOffset + sizeof(long) * functionIndex ;
-
-                    var functionThunk = MemoryMarshal.Read<int>(_peBytes.Slice(functionThunkOffset).Span);
-
-                    if (functionThunk == 0)
-                    {
-                        break;
-                    }
-
-                    // Determine if the function is imported via name or ordinal
+                    // Calculate the offset of the function
 
                     var functionOffset = Headers.PEHeader.Magic == PEMagic.PE32 ? importAddressTableOffset + sizeof(int) * functionIndex : importAddressTableOffset + sizeof(long) * functionIndex;
 
-                    if ((uint) functionThunk < (Headers.PEHeader.Magic == PEMagic.PE32 ? Constants.OrdinalFlag32 : Constants.OrdinalFlag64) && _peBytes.Span[RvaToOffset(functionThunk) + sizeof(short)] != byte.MinValue)
+                    // Read the thunk data of the function
+
+                    var functionThunkDataOffset = Headers.PEHeader.Magic == PEMagic.PE32 ? descriptorThunkOffset + sizeof(int) * functionIndex : descriptorThunkOffset + sizeof(long) * functionIndex;
+
+                    int functionDataOffset;
+
+                    if (Headers.PEHeader.Magic == PEMagic.PE32)
                     {
-                        // Read the name of the function
+                        var functionThunkData = MemoryMarshal.Read<uint>(_peBytes.Slice(functionThunkDataOffset).Span);
 
-                        var functionNameOffset = RvaToOffset(functionThunk) + sizeof(short);
+                        if (functionThunkData == 0)
+                        {
+                            break;
+                        }
 
-                        var functionName = ReadNullTerminatedString(functionNameOffset);
+                        // Determine if the function is imported via ordinal
 
-                        // Read the ordinal of the function
+                        if ((functionThunkData & Constants.OrdinalFlag32) != 0)
+                        {
+                            importedFunctions.Add(new ImportedFunction(string.Empty, functionOffset, (int) (functionThunkData & ushort.MaxValue)));
 
-                        var functionOrdinal = MemoryMarshal.Read<short>(_peBytes.Slice(RvaToOffset(functionThunk)).Span);
+                            continue;
+                        }
 
-                        importedFunctions.Add(new ImportedFunction(functionName, functionOffset, functionOrdinal));
+                        functionDataOffset = RvaToOffset((int) functionThunkData);
                     }
 
                     else
                     {
-                        importedFunctions.Add(new ImportedFunction("", functionOffset, (short) (functionThunk & 0xFFFF)));
+                        var functionThunkData = MemoryMarshal.Read<ulong>(_peBytes.Slice(functionThunkDataOffset).Span);
+
+                        if (functionThunkData == 0)
+                        {
+                            break;
+                        }
+
+                        // Determine if the function is imported via ordinal
+
+                        if ((functionThunkData & Constants.OrdinalFlag64) != 0)
+                        {
+                            importedFunctions.Add(new ImportedFunction(string.Empty, functionOffset, (int) (functionThunkData & ushort.MaxValue)));
+
+                            continue;
+                        }
+
+                        functionDataOffset = RvaToOffset((int) functionThunkData);
                     }
+
+                    // Read the ordinal of the function
+
+                    var functionOrdinal = MemoryMarshal.Read<short>(_peBytes.Slice(functionDataOffset).Span);
+
+                    // Read the name of the function
+
+                    var functionName = ReadNullTerminatedString(functionDataOffset + sizeof(short));
+
+                    importedFunctions.Add(new ImportedFunction(functionName, functionOffset, functionOrdinal));
                 }
 
                 return importedFunctions;
-            }
-
-            if (Headers.PEHeader.ImportTableDirectory.RelativeVirtualAddress != 0)
-            {
-                // Calculate the offset of the import table
-
-                var importTableOffset = RvaToOffset(Headers.PEHeader.ImportTableDirectory.RelativeVirtualAddress);
-
-                for (var descriptorIndex = 0;; descriptorIndex ++)
-                {
-                    // Read the import descriptor
-
-                    var descriptor = MemoryMarshal.Read<ImageImportDescriptor>(_peBytes.Slice(importTableOffset + Unsafe.SizeOf<ImageImportDescriptor>() * descriptorIndex).Span);
-
-                    if (descriptor.Name == 0)
-                    {
-                        break;
-                    }
-
-                    // Read the name of the import descriptor
-
-                    var descriptorNameOffset = RvaToOffset(descriptor.Name);
-
-                    var descriptorName = ReadNullTerminatedString(descriptorNameOffset);
-
-                    // Read the functions imported under the import descriptor
-
-                    var descriptorThunkOffset = descriptor.OriginalFirstThunk == 0 ? RvaToOffset(descriptor.FirstThunk) : RvaToOffset(descriptor.OriginalFirstThunk);
-
-                    var importAddressTableOffset = RvaToOffset(descriptor.FirstThunk);
-
-                    importDescriptors.Add(new ImportDescriptor(ReadImportedFunctions(descriptorThunkOffset, importAddressTableOffset), descriptorName));
-                }
             }
 
             if (Headers.PEHeader.DelayImportTableDirectory.RelativeVirtualAddress != 0)
@@ -215,6 +202,41 @@ namespace Lunar.PortableExecutable
 
                     importDescriptors.Add(new ImportDescriptor(ReadImportedFunctions(descriptorThunkOffset, importAddressTableOffset), descriptorName));
                 }
+            }
+
+            if (Headers.PEHeader.ImportTableDirectory.RelativeVirtualAddress == 0)
+            {
+                return importDescriptors;
+            }
+
+            // Calculate the offset of the import table
+
+            var importTableOffset = RvaToOffset(Headers.PEHeader.ImportTableDirectory.RelativeVirtualAddress);
+
+            for (var descriptorIndex = 0;; descriptorIndex++)
+            {
+                // Read the import descriptor
+
+                var descriptor = MemoryMarshal.Read<ImageImportDescriptor>(_peBytes.Slice(importTableOffset + Unsafe.SizeOf<ImageImportDescriptor>() * descriptorIndex).Span);
+
+                if (descriptor.Name == 0)
+                {
+                    break;
+                }
+
+                // Read the name of the import descriptor
+
+                var descriptorNameOffset = RvaToOffset(descriptor.Name);
+
+                var descriptorName = ReadNullTerminatedString(descriptorNameOffset);
+
+                // Read the functions imported under the import descriptor
+
+                var descriptorThunkOffset = descriptor.OriginalFirstThunk == 0 ? RvaToOffset(descriptor.FirstThunk) : RvaToOffset(descriptor.OriginalFirstThunk);
+
+                var importAddressTableOffset = RvaToOffset(descriptor.FirstThunk);
+
+                importDescriptors.Add(new ImportDescriptor(ReadImportedFunctions(descriptorThunkOffset, importAddressTableOffset), descriptorName));
             }
 
             return importDescriptors;
@@ -275,7 +297,7 @@ namespace Lunar.PortableExecutable
         {
             if (Headers.PEHeader.LoadConfigTableDirectory.RelativeVirtualAddress == 0)
             {
-                return new SecurityCookie(0, new byte[0]);
+                return new SecurityCookie(0);
             }
 
             if (Headers.PEHeader.Magic == PEMagic.PE32)
@@ -284,23 +306,7 @@ namespace Lunar.PortableExecutable
 
                 var loadConfigTable = MemoryMarshal.Read<ImageLoadConfigDirectory32>(_peBytes.Slice(RvaToOffset(Headers.PEHeader.LoadConfigTableDirectory.RelativeVirtualAddress)).Span);
 
-                if (loadConfigTable.SecurityCookie == 0)
-                {
-                    return new SecurityCookie(0, new byte[0]);
-                }
-
-                // Generate a randomised security cookie, ensuring the default security cookie value is not generated
-
-                var securityCookieBytes = new byte[4];
-
-                new Random().NextBytes(securityCookieBytes);
-
-                if (securityCookieBytes.SequenceEqual(new byte[] {0xBB, 0x40, 0xE6, 0x4E}))
-                {
-                    securityCookieBytes[3] += 1;
-                }
-
-                return new SecurityCookie((int) (loadConfigTable.SecurityCookie - (long) Headers.PEHeader.ImageBase), securityCookieBytes);
+                return loadConfigTable.SecurityCookie == 0 ? new SecurityCookie(0) : new SecurityCookie((int) (loadConfigTable.SecurityCookie - (long) Headers.PEHeader.ImageBase));
             }
 
             else
@@ -309,27 +315,7 @@ namespace Lunar.PortableExecutable
 
                 var loadConfigTable = MemoryMarshal.Read<ImageLoadConfigDirectory64>(_peBytes.Slice(RvaToOffset(Headers.PEHeader.LoadConfigTableDirectory.RelativeVirtualAddress)).Span);
 
-                if (loadConfigTable.SecurityCookie == 0)
-                {
-                    return new SecurityCookie(0, new byte[0]);
-                }
-
-                // Generate a randomised security cookie, ensuring the default security cookie value is not generated
-
-                var partialSecurityCookieBytes = new byte[6];
-
-                new Random().NextBytes(partialSecurityCookieBytes);
-
-                if (partialSecurityCookieBytes.SequenceEqual(new byte[] {0x2B, 0x99, 0x2D, 0xDF, 0xA2, 0x32}))
-                {
-                    partialSecurityCookieBytes[5] += 1;
-                }
-
-                var securityCookieBytes = new byte[8];
-
-                partialSecurityCookieBytes.CopyTo(securityCookieBytes, 0);
-
-                return new SecurityCookie((int) (loadConfigTable.SecurityCookie - (long) Headers.PEHeader.ImageBase), securityCookieBytes);
+                return loadConfigTable.SecurityCookie == 0 ? new SecurityCookie(0) : new SecurityCookie((int) (loadConfigTable.SecurityCookie - (long) Headers.PEHeader.ImageBase));
             }
         }
 

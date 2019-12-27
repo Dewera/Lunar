@@ -130,9 +130,13 @@ namespace Lunar.FunctionCall
 
             else
             {
-                // sub rsp, 0x28
+                var shadowSpace = callDescriptor.Parameters.Length > 4 ? (callDescriptor.Parameters.Length * sizeof(long) + 15) & -16 : 0x28;
 
-                assembledBytes.AddRange(new byte[] {0x48, 0x83, 0xEC, 0x28});
+                // sub rsp, shadowSpace
+
+                assembledBytes.AddRange(new byte[] {0x48, 0x83, 0xEC});
+
+                assembledBytes.Add((byte) shadowSpace);
 
                 // Move the first parameter into the RCX register
 
@@ -330,9 +334,11 @@ namespace Lunar.FunctionCall
 
                 assembledBytes.AddRange(BitConverter.GetBytes(callDescriptor.ReturnAddress.ToInt64()));
 
-                // add rsp, 0x28
+                // add rsp, shadowSpace
 
-                assembledBytes.AddRange(new byte[] {0x48, 0x83, 0xC4, 0x28});
+                assembledBytes.AddRange(new byte[] {0x48, 0x83, 0xC4});
+
+                assembledBytes.Add((byte) shadowSpace);
             }
 
             // ret

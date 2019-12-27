@@ -6,9 +6,9 @@ namespace Lunar.PortableExecutable.Structures
 
         internal int Offset { get; }
 
-        internal short Ordinal { get; }
+        internal int Ordinal { get; }
 
-        internal ImportedFunction(string name, int offset, short ordinal)
+        internal ImportedFunction(string name, int offset, int ordinal)
         {
             Name = name;
 
