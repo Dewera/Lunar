@@ -14,8 +14,8 @@ jobs:
         env:
             NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
       - name: Build Library
-        run: dotnet build --configuration Release
+        run: dotnet build Lunar --configuration Release
       - name: Create Package
-        run: dotnet pack --configuration Release Lunar
+        run: dotnet pack Lunar --configuration Release
       - name: Publish Package
         run: dotnet nuget push 'Lunar\bin\Release\*.nupkg' --skip-duplicate
