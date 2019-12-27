@@ -8,5 +8,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@master
+      - uses: actions/setup-dotnet@master
+        with:
+            source-url: https://nuget.pkg.github.com/${{github.actor}}
       - name: Build Library
         run: dotnet build --configuration Release
+      - name: Create Package
+        run: dotnet pack --configuration Release Lunar
+      - name: Publish Package
+        run: dotnet nuget push 'Lunar\bin\Release\*.nupkg' --skip-duplicate
