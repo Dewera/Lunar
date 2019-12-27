@@ -21,7 +21,7 @@ A lightweight native DLL mapping library that supports mapping directly from mem
 
 ### Installation
 
-- Install the latest stable version of Lunar using the GitHub Package Registry
+- Install the latest stable version of Lunar using the [GitHub Package Registry](https://github.com/Dewera/Lunar/packages/94022)
 
 ----
 
