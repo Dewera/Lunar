@@ -11,6 +11,8 @@ jobs:
       - uses: actions/setup-dotnet@master
         with:
             source-url: https://nuget.pkg.github.com/${{github.actor}}
+        env:
+            NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
       - name: Build Library
         run: dotnet build --configuration Release
       - name: Create Package
