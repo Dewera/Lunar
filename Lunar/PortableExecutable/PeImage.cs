@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
+using System.Collections.Immutable;
 using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -35,7 +34,7 @@ namespace Lunar.PortableExecutable
         {
             _peBytes = peBytes;
 
-            using (var peReader = new PEReader(new MemoryStream(peBytes.ToArray())))
+            using (var peReader = new PEReader(peBytes.ToArray().ToImmutableArray()))
             {
                 var debugDirectoryData = peReader.ReadDebugDirectory();
 
@@ -405,7 +404,7 @@ namespace Lunar.PortableExecutable
 
         private int RvaToOffset(int rva)
         {
-            var sectionHeader = Headers.SectionHeaders.First(section => section.VirtualAddress <= rva && section.VirtualAddress + section.VirtualSize > rva);
+            var sectionHeader = Headers.SectionHeaders[Headers.GetContainingSectionIndex(rva)];
 
             return rva - sectionHeader.VirtualAddress + sectionHeader.PointerToRawData;
         }

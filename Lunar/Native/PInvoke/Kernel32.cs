@@ -15,7 +15,7 @@ namespace Lunar.Native.PInvoke
         internal static extern bool IsWow64Process(SafeProcessHandle processHandle, out bool isWow64Process);
 
         [DllImport("kernel32.dll", SetLastError = true)]
-        internal static extern bool ReadProcessMemory(SafeProcessHandle processHandle, IntPtr baseAddress, out byte buffer, int size, IntPtr numberOfBytesRead);
+        internal static extern bool ReadProcessMemory(SafeProcessHandle processHandle, IntPtr baseAddress, out byte buffer, int size, out int numberOfBytesRead);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         internal static extern IntPtr VirtualAllocEx(SafeProcessHandle processHandle, IntPtr baseAddress, int size, AllocationType allocationType, ProtectionType protectionType);
@@ -30,6 +30,6 @@ namespace Lunar.Native.PInvoke
         internal static extern int WaitForSingleObject(SafeThreadHandle handle, int milliseconds);
 
         [DllImport("kernel32.dll", SetLastError = true)]
-        internal static extern bool WriteProcessMemory(SafeProcessHandle processHandle, IntPtr baseAddress, in byte buffer, int size, IntPtr numberOfBytesWritten);
+        internal static extern bool WriteProcessMemory(SafeProcessHandle processHandle, IntPtr baseAddress, in byte buffer, int size, out int numberOfBytesWritten);
     }
 }

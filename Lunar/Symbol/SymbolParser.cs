@@ -27,7 +27,12 @@ namespace Lunar.Symbol
         {
             // Initialise a global mutex to ensure only a single PDB is downloaded concurrently
 
-            if (!Mutex.TryOpenExisting("LunarMutex", out var mutex))
+            if (Mutex.TryOpenExisting("LunarMutex", out var mutex))
+            {
+                mutex.WaitOne();
+            }
+
+            else
             {
                 mutex = new Mutex(true, "LunarMutex");
             }
@@ -115,18 +120,16 @@ namespace Lunar.Symbol
                 throw new Win32Exception($"Failed to call SymLoadModule64 with error code {Marshal.GetLastWin32Error()}");
             }
 
-            // Get the addresses of the symbols
+            // Initialise a buffer to receive the symbol information
+
+            var symbolInfoBuffer = new byte[(Unsafe.SizeOf<SymbolInfo>() + Constants.MaxSymbolName * sizeof(char) + sizeof(long) - 1) / sizeof(long) * sizeof(long)];
+
+            MemoryMarshal.Write(symbolInfoBuffer, ref Unsafe.AsRef(new SymbolInfo {SizeOfStruct = Unsafe.SizeOf<SymbolInfo>(), MaxNameLen = Constants.MaxSymbolName}));
+
+            // Retrieve the addresses of the symbols
 
             IntPtr GetSymbolAddress(string symbolName)
             {
-                // Initialise a buffer to receive the symbol information
-
-                var symbolInfoBuffer = new byte[(Unsafe.SizeOf<SymbolInfo>() + Constants.MaxSymbolName * sizeof(char) + sizeof(long) - 1) / sizeof(long) * sizeof(long)];
-
-                MemoryMarshal.Write(symbolInfoBuffer, ref Unsafe.AsRef(new SymbolInfo {SizeOfStruct = Unsafe.SizeOf<SymbolInfo>(), MaxNameLen = Constants.MaxSymbolName}));
-
-                // Get the symbol information
-
                 if (!Dbghelp.SymFromName(localProcess.SafeHandle, symbolName, ref Unsafe.AsRef(Unsafe.As<byte, SymbolInfo>(ref symbolInfoBuffer[0]))))
                 {
                     throw new Win32Exception($"Failed to call SymFromName with error code {Marshal.GetLastWin32Error()}");

@@ -19,17 +19,11 @@ A lightweight native DLL mapping library that supports mapping directly from mem
 
 ----
 
-### Installation
-
-- Install the latest stable version of Lunar using the [GitHub Package Registry](https://github.com/Dewera/Lunar/packages/94022)
-
-----
-
 ### Getting started
 
 The example below demonstrates a basic implementation of the library
 
-```csharp
+```c#
 
 var libraryMapper = new LibraryMapper(process, dllBytes);
 
@@ -47,13 +41,13 @@ libraryMapper.UnmapLibrary();
 
 ### Constructors
 
-```csharp
+```c#
 LibraryMapper(Process, Memory<byte>)
 ```
 Provides the functionality to map a DLL from memory into a remote process
 
 
-```csharp
+```c#
 LibraryMapper(Process, string)
 ```
 
@@ -63,7 +57,7 @@ Provides the functionality to map a DLL from disk into a remote process
 
 ### Properties
 
-```csharp
+```c#
 DllBaseAddress
 ```
 
@@ -73,13 +67,13 @@ The base address of the DLL in the remote process after it has been mapped
 
 ### Methods
 
-```csharp
+```c#
 MapLibrary()
 ```
 
 Maps the DLL into the remote process
 
-```csharp
+```c#
 UnmapLibrary()
 ```
 

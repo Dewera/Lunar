@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -8,8 +9,6 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using Lunar.Native.Enumerations;
-using Lunar.Native.PInvoke;
-using Lunar.Native.Structures;
 using Lunar.PortableExecutable;
 using Lunar.RemoteProcess;
 using Lunar.Symbol;
@@ -41,6 +40,18 @@ namespace Lunar
         /// </summary>
         public LibraryMapper(Process process, Memory<byte> dllBytes)
         {
+            // Validate the arguments passed into the constructor
+
+            if (process == default || process.HasExited)
+            {
+                throw new ArgumentException("The process provided was invalid");
+            }
+
+            if (dllBytes.IsEmpty)
+            {
+                throw new ArgumentException("The DLL bytes provided were invalid");
+            }
+
             EnterDebugMode();
 
             _dllBytes = dllBytes;
@@ -59,6 +70,18 @@ namespace Lunar
         /// </summary>
         public LibraryMapper(Process process, string dllPath)
         {
+            // Validate the arguments passed into the constructor
+
+            if (process == default || process.HasExited)
+            {
+                throw new ArgumentException("The process provided was invalid");
+            }
+
+            if (string.IsNullOrWhiteSpace(dllPath))
+            {
+                throw new ArgumentException("The DLL path provided was invalid");
+            }
+
             EnterDebugMode();
 
             _dllBytes = File.ReadAllBytes(dllPath);
@@ -81,7 +104,7 @@ namespace Lunar
 
             LoadDependencies();
 
-            BuildImportTable();
+            BuildImportAddressTable();
 
             RelocateImage();
 
@@ -125,14 +148,12 @@ namespace Lunar
             }
         }
 
-        private void BuildImportTable()
+        private void BuildImportAddressTable()
         {
             if (_peImage.ImportDescriptors.Count == 0)
             {
                 return;
             }
-
-            // Build the import table of the DLL in the local process
 
             foreach (var importDescriptor in _peImage.ImportDescriptors)
             {
@@ -158,6 +179,8 @@ namespace Lunar
                         functionAddress = _processManager.GetFunctionAddress(importDescriptor.Name, function.Name);
                     }
 
+                    // Write the function address into the import address table in the local process
+
                     if (_processManager.IsWow64)
                     {
                         MemoryMarshal.Write(_dllBytes.Slice(function.Offset).Span, ref Unsafe.AsRef(functionAddress.ToInt32()));
@@ -177,7 +200,7 @@ namespace Lunar
 
             if (_peImage.TlsCallbacks.Any(tlsCallback => !_processManager.CallFunction<bool>(CallingConvention.StdCall, DllBaseAddress + tlsCallback.Offset, DllBaseAddress.ToInt64(), (long) reason, 0)))
             {
-                throw new Win32Exception($"Failed to call the entry point of a TLS callback with {reason.ToString()}");
+                throw new Win32Exception($"Failed to call the entry point of a TLS callback with {reason.ToString()} in the remote process");
             }
 
             // Call the entry point of the DLL
@@ -189,7 +212,7 @@ namespace Lunar
 
             if (!_processManager.CallFunction<bool>(CallingConvention.StdCall, DllBaseAddress + _peImage.Headers.PEHeader.AddressOfEntryPoint, DllBaseAddress.ToInt64(), (long) reason, 0))
             {
-                throw new Win32Exception($"Failed to call the entry point of the DLL with {reason.ToString()}");
+                throw new Win32Exception($"Failed to call the entry point of the DLL with {reason.ToString()} in the remote process");
             }
         }
 
@@ -221,13 +244,11 @@ namespace Lunar
 
                 var dependencyBaseAddress = _processManager.Modules.First(module => module.Name.Equals(importDescriptor.Name, StringComparison.OrdinalIgnoreCase)).BaseAddress;
 
-                // Free the dependency from the remote process, decreasing the reference count if it is higher than 1
+                // Free the dependency from the remote process, decreasing its reference count if it is higher than 1
 
-                var ntStatus = _processManager.CallFunction<NtStatus>(CallingConvention.StdCall, _processManager.GetFunctionAddress("ntdll.dll", "LdrUnloadDll"), dependencyBaseAddress.ToInt64());
-
-                if (ntStatus != NtStatus.Success)
+                if (!_processManager.CallFunction<bool>(CallingConvention.StdCall, _processManager.GetFunctionAddress("kernel32.dll", "FreeLibrary"), dependencyBaseAddress.ToInt64()))
                 {
-                    throw new Win32Exception($"Failed to call LdrUnloadDll with error code {Ntdll.RtlNtStatusToDosError(ntStatus)}");
+                    throw new Win32Exception("Failed to call FreeLibrary in the remote process");
                 }
             }
         }
@@ -278,74 +299,33 @@ namespace Lunar
 
         private void LoadDependencies()
         {
-            // Resolve the DLL of any functions imported from an API set
-
-            if (_peImage.ImportDescriptors.Exists(importDescriptor => importDescriptor.Name.StartsWith("api-ms")))
-            {
-                var apiSetMappings = _processManager.ReadApiSetMappings();
-
-                foreach (var importDescriptor in _peImage.ImportDescriptors.Where(importDescriptor => importDescriptor.Name.StartsWith("api-ms")))
-                {
-                    importDescriptor.Name = apiSetMappings[importDescriptor.Name];
-                }
-            }
-
-            var systemPath = _processManager.IsWow64 ? Environment.GetFolderPath(Environment.SpecialFolder.SystemX86) : Environment.GetFolderPath(Environment.SpecialFolder.System);
+            var apiSetMappings = new Lazy<Dictionary<string, string>>(_processManager.ReadApiSetMappings);
 
             foreach (var importDescriptor in _peImage.ImportDescriptors)
             {
-                var dependency = _processManager.Modules.FirstOrDefault(module => module.Name.Equals(importDescriptor.Name, StringComparison.OrdinalIgnoreCase));
+                // Resolve the name of the dependency if it is an API set
 
-                if (dependency == default)
+                if (importDescriptor.Name.StartsWith("api-ms"))
                 {
-                    // Write the file path of the dependency into the remote process
-
-                    var dependencyFilePathBytes = Encoding.Unicode.GetBytes(Path.Combine(systemPath, importDescriptor.Name));
-
-                    var dependencyFilePathBuffer = _processManager.Memory.Allocate(dependencyFilePathBytes.Length, ProtectionType.ReadWrite);
-
-                    _processManager.Memory.Write(dependencyFilePathBuffer, dependencyFilePathBytes);
-
-                    // Initialise a UnicodeString representing the dependency path in the remote process
-
-                    var dependencyFilePathUnicodeStringBuffer = _processManager.Memory.Allocate(_processManager.IsWow64 ? Unsafe.SizeOf<UnicodeString32>() : Unsafe.SizeOf<UnicodeString64>(), ProtectionType.ReadWrite);
-
-                    var ntStatus = _processManager.CallFunction<NtStatus>(CallingConvention.StdCall, _processManager.GetFunctionAddress("ntdll.dll", "RtlInitUnicodeStringEx"), dependencyFilePathUnicodeStringBuffer.ToInt64(), dependencyFilePathBuffer.ToInt64());
-
-                    if (ntStatus != NtStatus.Success)
-                    {
-                        throw new Win32Exception($"Failed to call RtlInitUnicodeStringEx with error code {Ntdll.RtlNtStatusToDosError(ntStatus)}");
-                    }
-
-                    // Load the dependency into the remote process
-
-                    var moduleHandleBuffer = _processManager.Memory.Allocate(_processManager.IsWow64 ? sizeof(int) : sizeof(long), ProtectionType.ReadWrite);
-
-                    ntStatus = _processManager.CallFunction<NtStatus>(CallingConvention.StdCall, _processManager.GetFunctionAddress("ntdll.dll", "LdrLoadDll"), 0, 0, dependencyFilePathUnicodeStringBuffer.ToInt64(), moduleHandleBuffer.ToInt64());
-
-                    if (ntStatus != NtStatus.Success)
-                    {
-                        throw new Win32Exception($"Failed to call LdrLoadDll with error code {Ntdll.RtlNtStatusToDosError(ntStatus)}");
-                    }
-
-                    _processManager.Memory.Free(dependencyFilePathBuffer);
-
-                    _processManager.Memory.Free(dependencyFilePathUnicodeStringBuffer);
-
-                    _processManager.Memory.Free(moduleHandleBuffer);
+                    importDescriptor.Name = apiSetMappings.Value[importDescriptor.Name];
                 }
 
-                else
+                // Write the name of the dependency into the remote process
+
+                var dependencyNameBytes = Encoding.Unicode.GetBytes(importDescriptor.Name);
+
+                var dependencyNameBuffer = _processManager.Memory.Allocate(dependencyNameBytes.Length, ProtectionType.ReadWrite);
+
+                _processManager.Memory.Write(dependencyNameBuffer, dependencyNameBytes);
+
+                // Load the dependency into the remote process, increasing its reference count if it is already loaded
+
+                if (_processManager.CallFunction<IntPtr>(CallingConvention.StdCall, _processManager.GetFunctionAddress("kernel32.dll", "LoadLibraryW"), dependencyNameBuffer.ToInt64()) == IntPtr.Zero)
                 {
-                    // Increase the reference count of the dependency
-
-                    var ntStatus = _processManager.CallFunction<NtStatus>(CallingConvention.StdCall, _processManager.GetFunctionAddress("ntdll.dll", "LdrAddRefDll"), 0, dependency.BaseAddress.ToInt64());
-
-                    if (ntStatus != NtStatus.Success)
-                    {
-                        throw new Win32Exception($"Failed to call LdrAddRefDll in the remote process with error code {Ntdll.RtlNtStatusToDosError(ntStatus)}");
-                    }
+                    throw new Win32Exception("Failed to call LoadLibraryW in the remote process");
                 }
+
+                _processManager.Memory.Free(dependencyNameBuffer);
             }
 
             _processManager.Refresh();
@@ -432,11 +412,19 @@ namespace Lunar
 
         private void ValidateArchitecture()
         {
-            // Ensure the architecture of the process matches the architecture of the DLL
+            if (!Environment.Is64BitOperatingSystem)
+            {
+                throw new PlatformNotSupportedException("Native x86 systems are not supported");
+            }
+
+            if (!Environment.Is64BitProcess && !_processManager.IsWow64)
+            {
+                throw new NotSupportedException("x64 mapping is not supported from an x86 build");
+            }
 
             if (_processManager.IsWow64 != (_peImage.Headers.PEHeader.Magic == PEMagic.PE32))
             {
-                throw new ApplicationException("The architecture of the remote process did not match the architecture of the DLL");
+                throw new ApplicationException("The architecture of the DLL must match that of the process");
             }
         }
     }

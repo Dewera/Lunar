@@ -54,7 +54,7 @@ namespace Lunar.RemoteProcess
         {
             var buffer = new byte[size];
 
-            if (!Kernel32.ReadProcessMemory(_processHandle, baseAddress, out buffer[0], buffer.Length, IntPtr.Zero))
+            if (!Kernel32.ReadProcessMemory(_processHandle, baseAddress, out buffer[0], buffer.Length, out _))
             {
                 throw new Win32Exception($"Failed to call ReadProcessMemory with error code {Marshal.GetLastWin32Error()}");
             }
@@ -64,7 +64,7 @@ namespace Lunar.RemoteProcess
 
         internal void Write(IntPtr baseAddress, Memory<byte> buffer)
         {
-            if (!Kernel32.WriteProcessMemory(_processHandle, baseAddress, buffer.Span[0], buffer.Length, IntPtr.Zero))
+            if (!Kernel32.WriteProcessMemory(_processHandle, baseAddress, buffer.Span[0], buffer.Length, out _))
             {
                 throw new Win32Exception($"Failed to call WriteProcessMemory with error code {Marshal.GetLastWin32Error()}");
             }
