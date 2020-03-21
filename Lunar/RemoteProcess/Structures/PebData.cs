@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Lunar.RemoteProcess.Structures
 {

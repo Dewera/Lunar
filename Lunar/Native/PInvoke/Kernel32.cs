@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.InteropServices;
 using Lunar.Native.Enumerations;
 using Lunar.Native.SafeHandle;
@@ -10,7 +10,7 @@ namespace Lunar.Native.PInvoke
     {
         [DllImport("kernel32.dll", SetLastError = true)]
         internal static extern bool CloseHandle(IntPtr handle);
-
+        
         [DllImport("kernel32.dll", SetLastError = true)]
         internal static extern bool IsWow64Process(SafeProcessHandle processHandle, out bool isWow64Process);
 
@@ -27,7 +27,7 @@ namespace Lunar.Native.PInvoke
         internal static extern bool VirtualProtectEx(SafeProcessHandle processHandle, IntPtr baseAddress, int size, ProtectionType protectionType, out ProtectionType oldProtectionType);
 
         [DllImport("kernel32.dll", SetLastError = true)]
-        internal static extern int WaitForSingleObject(SafeThreadHandle handle, int milliseconds);
+        internal static extern int WaitForSingleObject(SafeWin32Handle handle, int milliseconds);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         internal static extern bool WriteProcessMemory(SafeProcessHandle processHandle, IntPtr baseAddress, in byte buffer, int size, out int numberOfBytesWritten);

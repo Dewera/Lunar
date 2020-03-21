@@ -1,153 +1,149 @@
-using System;
-using System.ComponentModel;
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
-using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Threading;
 using System.Threading.Tasks;
 using Lunar.Native;
 using Lunar.Native.Enumerations;
 using Lunar.Native.PInvoke;
 using Lunar.Native.Structures;
 using Lunar.PortableExecutable;
-using Lunar.RemoteProcess.Structures;
+using Lunar.Shared;
 
 namespace Lunar.Symbol
 {
     internal sealed class SymbolParser
     {
-        internal IntPtr RtlInsertInvertedFunctionTable { get; private set; }
-
-        internal IntPtr RtlRemoveInvertedFunctionTable { get; private set; }
-
-        internal SymbolParser(Module module)
+        internal ImmutableDictionary<string, int> SymbolOffsets { get; }
+        
+        internal SymbolParser(string dllFilePath, params string[] symbolNames)
         {
-            // Initialise a global mutex to ensure only a single PDB is downloaded concurrently
+            var pdbPath = DownloadPdb(dllFilePath).Result;
 
-            if (Mutex.TryOpenExisting("LunarMutex", out var mutex))
-            {
-                mutex.WaitOne();
-            }
-
-            else
-            {
-                mutex = new Mutex(true, "LunarMutex");
-            }
-
-            string pdbFilePath;
-
-            using (mutex)
-            {
-                pdbFilePath = DownloadPdb(module.PeImage.Value).Result;
-
-                mutex.ReleaseMutex();
-            }
-
-            InitialiseSymbols(pdbFilePath, module.BaseAddress);
+            SymbolOffsets = ParseSymbolOffsets(pdbPath, symbolNames);
         }
 
-        private static async Task<string> DownloadPdb(PeImage peImage)
+        private static async Task<string> DownloadPdb(string dllFilePath)
         {
-            // Ensure a temporary directory exists on disk to store the PDB
+            // Retrieve the code view debug data for the DLL
+            
+            var peImage = new PeImage(File.ReadAllBytes(dllFilePath));
 
-            var directoryInfo = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "Lunar", "PDB", peImage.Headers.PEHeader.Magic == PEMagic.PE32 ? "WOW64" : "X64"));
+            var codeViewDebugDirectoryData = peImage.CodeViewDebugDirectoryData;
 
-            // Clear the directory if the correct PDB hasn't been downloaded
+            // Ensure a directory exists to cache the PDB
+            
+            var applicationDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+  
+            var directoryPath = Path.Combine(applicationDataPath, "Lunar", "Dependencies");
+              
+            var directoryInfo = Directory.CreateDirectory(directoryPath);
 
-            var pdbFilePath = Path.Combine(directoryInfo.FullName, $"{peImage.DebugDirectoryData.Path.Replace(".pdb", "")}-{peImage.DebugDirectoryData.Guid.ToString().Replace("-", "")}.pdb");
+            // Determine if the correct version of the PDB is already on disk
 
+            var pdbPath = Path.Combine(directoryInfo.FullName, $"{codeViewDebugDirectoryData.Path}-{codeViewDebugDirectoryData.Guid:N}.pdb");
+            
             foreach (var file in directoryInfo.EnumerateFiles())
             {
-                if (file.FullName.Equals(pdbFilePath))
+                if (!file.Name.StartsWith(codeViewDebugDirectoryData.Path))
                 {
-                    return pdbFilePath;
+                    continue;
+                }
+                
+                if (file.FullName.Equals(pdbPath))
+                {
+                    return pdbPath;
                 }
 
                 try
                 {
                     file.Delete();
                 }
-
+  
                 catch (IOException)
                 {
-                    // The file is currently open and cannot be safely deleted
+                    // The file cannot be safely deleted
                 }
             }
-
+            
             // Download the PDB from the Microsoft symbol server
+            
+            var pdbUri = $"https://msdl.microsoft.com/download/symbols/{codeViewDebugDirectoryData.Path}/{codeViewDebugDirectoryData.Guid:N}{codeViewDebugDirectoryData.Age}/{codeViewDebugDirectoryData.Path}";
+              
+            using var webClient = new WebClient();
+  
+            await webClient.DownloadFileTaskAsync(pdbUri, pdbPath);
 
-            static void ReportDownloadProgress(object sender, ProgressChangedEventArgs eventArgs)
-            {
-                var progress = eventArgs.ProgressPercentage / 2;
-
-                Console.Write($"\rDownloading required files - [{new string('=', progress)}{new string(' ', 50 - progress)}] - {eventArgs.ProgressPercentage}%");
-            }
-
-            var pdbUri = new Uri($"https://msdl.microsoft.com/download/symbols/{peImage.DebugDirectoryData.Path}/{peImage.DebugDirectoryData.Guid.ToString().Replace("-", "")}{peImage.DebugDirectoryData.Age}/{peImage.DebugDirectoryData.Path}");
-
-            using (var webClient = new WebClient())
-            {
-                webClient.DownloadProgressChanged += ReportDownloadProgress;
-
-                await webClient.DownloadFileTaskAsync(pdbUri, pdbFilePath);
-            }
-
-            return pdbFilePath;
+            return pdbPath;
         }
 
-        private void InitialiseSymbols(string pdbFilePath, IntPtr dllBaseAddress)
+        private static ImmutableDictionary<string, int> ParseSymbolOffsets(string pdbPath, IEnumerable<string> symbolNames)
         {
+            var symbolOffsets = new Dictionary<string, int>();
+            
             using var localProcess = Process.GetCurrentProcess();
-
+            
             // Initialise a symbol handler
+            
+            Dbghelp.SymSetOptions(SymbolOptions.UndecorateName | SymbolOptions.DeferredLoads);
 
             if (!Dbghelp.SymInitialize(localProcess.SafeHandle, null, false))
             {
-                throw new Win32Exception($"Failed to call SymInitialize with error code {Marshal.GetLastWin32Error()}");
+                throw ExceptionBuilder.BuildWin32Exception("SymInitialize");
             }
-
-            Dbghelp.SymSetOptions(SymbolOptions.UndecorateName | SymbolOptions.DeferredLoads | SymbolOptions.AutoPublics);
-
+            
             // Load the symbol table for the PDB
-
-            var symbolTableAddress = Dbghelp.SymLoadModule64(localProcess.SafeHandle, IntPtr.Zero, pdbFilePath, null, dllBaseAddress.ToInt64(), (int) new FileInfo(pdbFilePath).Length);
+            
+            const int pseudoDllBaseAddress = 0x1000;
+            
+            var pdbSize = new FileInfo(pdbPath).Length;
+            
+            var symbolTableAddress = Dbghelp.SymLoadModuleEx(localProcess.SafeHandle, IntPtr.Zero, pdbPath, null, pseudoDllBaseAddress, (int) pdbSize, IntPtr.Zero, 0);
 
             if (symbolTableAddress == 0)
             {
-                throw new Win32Exception($"Failed to call SymLoadModule64 with error code {Marshal.GetLastWin32Error()}");
+                throw ExceptionBuilder.BuildWin32Exception("SymLoadModuleEx");
             }
-
+            
             // Initialise a buffer to receive the symbol information
+            
+            var symbolInfoBufferSize = (Unsafe.SizeOf<SymbolInfo>() + Constants.MaxSymbolName * sizeof(char) + sizeof(long) - 1) / sizeof(long);
 
-            var symbolInfoBuffer = new byte[(Unsafe.SizeOf<SymbolInfo>() + Constants.MaxSymbolName * sizeof(char) + sizeof(long) - 1) / sizeof(long) * sizeof(long)];
+            var symbolInfoBuffer = new byte[symbolInfoBufferSize];
 
-            MemoryMarshal.Write(symbolInfoBuffer, ref Unsafe.AsRef(new SymbolInfo {SizeOfStruct = Unsafe.SizeOf<SymbolInfo>(), MaxNameLen = Constants.MaxSymbolName}));
+            var symbolInfo = new SymbolInfo(Constants.MaxSymbolName);
+            
+            MemoryMarshal.Write(symbolInfoBuffer, ref symbolInfo);
+            
+            // Retrieve the offsets of the symbols
 
-            // Retrieve the addresses of the symbols
-
-            IntPtr GetSymbolAddress(string symbolName)
+            SymbolInfo RetrieveSymbolInformation(string symbolName)
             {
-                if (!Dbghelp.SymFromName(localProcess.SafeHandle, symbolName, ref Unsafe.AsRef(Unsafe.As<byte, SymbolInfo>(ref symbolInfoBuffer[0]))))
+                if (!Dbghelp.SymFromName(localProcess.SafeHandle, symbolName, ref symbolInfoBuffer[0]))
                 {
-                    throw new Win32Exception($"Failed to call SymFromName with error code {Marshal.GetLastWin32Error()}");
+                    throw ExceptionBuilder.BuildWin32Exception("SymFromName");
                 }
-
-                return new IntPtr(MemoryMarshal.Read<SymbolInfo>(symbolInfoBuffer).Address);
+                
+                return MemoryMarshal.Read<SymbolInfo>(symbolInfoBuffer);
             }
 
-            RtlInsertInvertedFunctionTable = GetSymbolAddress("RtlInsertInvertedFunctionTable");
-
-            RtlRemoveInvertedFunctionTable = GetSymbolAddress("RtlRemoveInvertedFunctionTable");
-
-            // Clean up the unmanaged resources used by the symbol handler
+            foreach (var symbolName in symbolNames)
+            {
+                var symbolInformation = RetrieveSymbolInformation(symbolName);
+                
+                symbolOffsets.Add(symbolName, (int) (symbolInformation.Address - pseudoDllBaseAddress));
+            }
 
             if (!Dbghelp.SymCleanup(localProcess.SafeHandle))
             {
-                throw new Win32Exception($"Failed to call SymCleanup with error code {Marshal.GetLastWin32Error()}");
+                throw ExceptionBuilder.BuildWin32Exception("SymCleanup");
             }
+            
+            return symbolOffsets.ToImmutableDictionary();
         }
     }
 }

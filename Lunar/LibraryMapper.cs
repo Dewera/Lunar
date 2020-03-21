@@ -1,16 +1,17 @@
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection.PortableExecutable;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using Lunar.Extensions;
 using Lunar.Native.Enumerations;
 using Lunar.PortableExecutable;
+using Lunar.PortableExecutable.Structures;
 using Lunar.RemoteProcess;
+using Lunar.Shared;
 using Lunar.Symbol;
 
 [assembly: CLSCompliant(true)]
@@ -38,15 +39,15 @@ namespace Lunar
         /// <summary>
         /// Provides the functionality to map a DLL from memory into a remote process
         /// </summary>
-        public LibraryMapper(Process process, Memory<byte> dllBytes)
+        public LibraryMapper(Process process, ReadOnlyMemory<byte> dllBytes)
         {
-            // Validate the arguments passed into the constructor
+            // Validate the arguments
 
-            if (process == default || process.HasExited)
+            if (process is null || process.HasExited)
             {
                 throw new ArgumentException("The process provided was invalid");
             }
-
+            
             if (dllBytes.IsEmpty)
             {
                 throw new ArgumentException("The DLL bytes provided were invalid");
@@ -54,45 +55,47 @@ namespace Lunar
 
             EnterDebugMode();
 
-            _dllBytes = dllBytes;
-
+            _dllBytes = new Memory<byte>(new byte[dllBytes.Length]);
+            
+            dllBytes.CopyTo(_dllBytes);
+            
             _peImage = new PeImage(dllBytes);
-
+            
             _processManager = new ProcessManager(process);
 
-            _symbolParser = new SymbolParser(_processManager.Modules.First(module => module.Name.Equals("ntdll.dll")));
-
-            ValidateArchitecture();
+            _symbolParser = new SymbolParser(RetrieveNtdllFilePath(process), "RtlInsertInvertedFunctionTable", "RtlRemoveInvertedFunctionTable");
         }
-
+        
         /// <summary>
         /// Provides the functionality to map a DLL from disk into a remote process
         /// </summary>
-        public LibraryMapper(Process process, string dllPath)
+        public LibraryMapper(Process process, string dllFilePath)
         {
-            // Validate the arguments passed into the constructor
-
-            if (process == default || process.HasExited)
+            // Validate the arguments
+            
+            if (process is null || process.HasExited)
             {
                 throw new ArgumentException("The process provided was invalid");
             }
 
-            if (string.IsNullOrWhiteSpace(dllPath))
+            if (string.IsNullOrWhiteSpace(dllFilePath))
             {
-                throw new ArgumentException("The DLL path provided was invalid");
+                throw new ArgumentException("The DLL file path provided was invalid");
             }
-
+            
             EnterDebugMode();
 
-            _dllBytes = File.ReadAllBytes(dllPath);
-
-            _peImage = new PeImage(_dllBytes);
-
+            var dllBytes = File.ReadAllBytes(dllFilePath);
+            
+            _dllBytes = new Memory<byte>(new byte[dllBytes.Length]);
+            
+            dllBytes.CopyTo(_dllBytes);
+            
+            _peImage = new PeImage(dllBytes);
+            
             _processManager = new ProcessManager(process);
 
-            _symbolParser = new SymbolParser(_processManager.Modules.First(module => module.Name.Equals("ntdll.dll")));
-
-            ValidateArchitecture();
+            _symbolParser = new SymbolParser(RetrieveNtdllFilePath(process), "RtlInsertInvertedFunctionTable", "RtlRemoveInvertedFunctionTable");
         }
 
         /// <summary>
@@ -100,22 +103,20 @@ namespace Lunar
         /// </summary>
         public void MapLibrary()
         {
-            DllBaseAddress = _processManager.Memory.Allocate(_peImage.Headers.PEHeader.SizeOfImage, ProtectionType.ReadWrite);
-
+            DllBaseAddress = _processManager.Process.AllocateMemory(_peImage.PeHeaders.PEHeader.SizeOfImage, ProtectionType.ReadWrite);
+            
             LoadDependencies();
 
             BuildImportAddressTable();
 
             RelocateImage();
-
-            MapSections();
-
-            MapHeaders();
-
-            EnableExceptionHandling();
-
+            
+            MapImage();
+            
             InitialiseSecurityCookie();
-
+            
+            EnableExceptionHandling();
+            
             CallInitialisationRoutines(DllReason.ProcessAttach);
         }
 
@@ -128,13 +129,13 @@ namespace Lunar
 
             DisableExceptionHandling();
 
-            FreeDependencies();
-
-            _processManager.Memory.Free(DllBaseAddress);
+            UnloadDependencies();
+            
+            _processManager.Process.FreeMemory(DllBaseAddress);
 
             DllBaseAddress = IntPtr.Zero;
         }
-
+        
         private static void EnterDebugMode()
         {
             try
@@ -148,200 +149,159 @@ namespace Lunar
             }
         }
 
+        private static string RetrieveNtdllFilePath(Process process)
+        {
+            var systemFolderPath = Environment.GetFolderPath(process.GetArchitecture() == Architecture.X86 ? Environment.SpecialFolder.SystemX86 : Environment.SpecialFolder.System);
+
+            return Path.Combine(systemFolderPath, "ntdll.dll");
+        }
+
         private void BuildImportAddressTable()
         {
-            if (_peImage.ImportDescriptors.Count == 0)
-            {
-                return;
-            }
-
-            foreach (var importDescriptor in _peImage.ImportDescriptors)
+            void ProcessImportDescriptor(ImportDescriptor importDescriptor)
             {
                 foreach (var function in importDescriptor.Functions)
                 {
-                    IntPtr functionAddress;
+                    // Get the function address
 
-                    if (function.Name.Equals(string.Empty))
-                    {
-                        // Find the module that the function is exported from in the remote process
+                    var importDescriptorName = _processManager.ResolveDllName(importDescriptor.Name);
 
-                        var functionModule = _processManager.Modules.First(module => module.Name.Equals(importDescriptor.Name, StringComparison.OrdinalIgnoreCase));
+                    var functionAddress = function.Name is null ? _processManager.GetFunctionAddress(importDescriptorName, function.Ordinal) : _processManager.GetFunctionAddress(importDescriptorName, function.Name);
+                    
+                    // Write the function address into the import address table
 
-                        // Determine the name of the function using its ordinal
-
-                        var functionName = functionModule.PeImage.Value.ExportedFunctions.First(exportedFunction => exportedFunction.Ordinal == function.Ordinal).Name;
-
-                        functionAddress = _processManager.GetFunctionAddress(importDescriptor.Name, functionName);
-                    }
-
-                    else
-                    {
-                        functionAddress = _processManager.GetFunctionAddress(importDescriptor.Name, function.Name);
-                    }
-
-                    // Write the function address into the import address table in the local process
-
-                    if (_processManager.IsWow64)
-                    {
-                        MemoryMarshal.Write(_dllBytes.Slice(function.Offset).Span, ref Unsafe.AsRef(functionAddress.ToInt32()));
-                    }
-
-                    else
-                    {
-                        MemoryMarshal.Write(_dllBytes.Slice(function.Offset).Span, ref Unsafe.AsRef(functionAddress.ToInt64()));
-                    }
+                    MemoryMarshal.Write(_dllBytes.Slice(function.Offset).Span, ref functionAddress);
                 }
             }
-        }
+            
+            foreach (var importDescriptor in _peImage.ImportDirectory.Value.ImportDescriptors)
+            {
+                ProcessImportDescriptor(importDescriptor);
+            }
 
+            foreach (var delayImportDescriptor in _peImage.DelayImportDirectory.Value.DelayImportDescriptors)
+            {
+                ProcessImportDescriptor(delayImportDescriptor);
+            }
+        }
+        
         private void CallInitialisationRoutines(DllReason reason)
         {
             // Call any TLS callbacks
 
-            if (_peImage.TlsCallbacks.Any(tlsCallback => !_processManager.CallFunction<bool>(CallingConvention.StdCall, DllBaseAddress + tlsCallback.Offset, DllBaseAddress.ToInt64(), (long) reason, 0)))
+            if (_peImage.TlsDirectory.Value.TlsCallbackOffsets.Any(tlsCallbackOffset => !_processManager.CallRoutine<bool>(CallingConvention.StdCall, DllBaseAddress + tlsCallbackOffset, DllBaseAddress.ToInt64(), (long) reason, 0)))
             {
-                throw new Win32Exception($"Failed to call the entry point of a TLS callback with {reason.ToString()} in the remote process");
+                throw new ApplicationException($"Failed to call the entry point of a TLS callback with {reason:G} in the remote process");
             }
-
+            
             // Call the entry point of the DLL
-
-            if (_peImage.Headers.PEHeader.AddressOfEntryPoint == 0)
+            
+            if (_peImage.PeHeaders.PEHeader.AddressOfEntryPoint != 0 && !_processManager.CallRoutine<bool>(CallingConvention.StdCall, DllBaseAddress + _peImage.PeHeaders.PEHeader.AddressOfEntryPoint, DllBaseAddress.ToInt64(), (long) reason, 0))
             {
-                return;
-            }
-
-            if (!_processManager.CallFunction<bool>(CallingConvention.StdCall, DllBaseAddress + _peImage.Headers.PEHeader.AddressOfEntryPoint, DllBaseAddress.ToInt64(), (long) reason, 0))
-            {
-                throw new Win32Exception($"Failed to call the entry point of the DLL with {reason.ToString()} in the remote process");
+                throw new ApplicationException($"Failed to call the entry point of the DLL with {reason:G} in the remote process");
             }
         }
 
         private void DisableExceptionHandling()
         {
-            // Remove the entry for the DLL from the LdrpInvertedFunctionTable
+            // Remove the exception handlers for the DLL from the LdrpInvertedFunctionTable
 
-            if (!_processManager.CallFunction<bool>(CallingConvention.FastCall, _symbolParser.RtlRemoveInvertedFunctionTable, DllBaseAddress.ToInt64()))
+            var routineAddress = _processManager.Modules.First(module => module.Name.Equals("ntdll.dll", StringComparison.OrdinalIgnoreCase)).BaseAddress + _symbolParser.SymbolOffsets["RtlRemoveInvertedFunctionTable"];
+            
+            if (!_processManager.CallRoutine<bool>(CallingConvention.FastCall, routineAddress, DllBaseAddress.ToInt64()))
             {
-                throw new Win32Exception("Failed to call RtlRemoveInvertedFunctionTable in the remote process");
+                throw new ApplicationException("Failed to call RtlRemoteInvertedFunctionTable in the remote process");
             }
         }
 
         private void EnableExceptionHandling()
         {
-            // Add an entry for the DLL to the LdrpInvertedFunctionTable
-
-            if (!_processManager.CallFunction<bool>(CallingConvention.FastCall, _symbolParser.RtlInsertInvertedFunctionTable, DllBaseAddress.ToInt64(), _peImage.Headers.PEHeader.SizeOfImage))
+            // Add the exception handlers for the DLL to the LdrpInvertedFunctionTable
+            
+            var routineAddress = _processManager.Modules.First(module => module.Name.Equals("ntdll.dll", StringComparison.OrdinalIgnoreCase)).BaseAddress + _symbolParser.SymbolOffsets["RtlInsertInvertedFunctionTable"];
+            
+            if (!_processManager.CallRoutine<bool>(CallingConvention.FastCall, routineAddress, DllBaseAddress.ToInt64(), _peImage.PeHeaders.PEHeader.SizeOfImage))
             {
-                throw new Win32Exception("Failed to call RtlInsertInvertedFunctionTable in the remote process");
-            }
-        }
-
-        private void FreeDependencies()
-        {
-            foreach (var importDescriptor in _peImage.ImportDescriptors)
-            {
-                // Get the base address of the dependency in the remote process
-
-                var dependencyBaseAddress = _processManager.Modules.First(module => module.Name.Equals(importDescriptor.Name, StringComparison.OrdinalIgnoreCase)).BaseAddress;
-
-                // Free the dependency from the remote process, decreasing its reference count if it is higher than 1
-
-                if (!_processManager.CallFunction<bool>(CallingConvention.StdCall, _processManager.GetFunctionAddress("kernel32.dll", "FreeLibrary"), dependencyBaseAddress.ToInt64()))
-                {
-                    throw new Win32Exception("Failed to call FreeLibrary in the remote process");
-                }
+                throw new ApplicationException("Failed to call RtlInsertInvertedFunctionTable in the remote process");
             }
         }
 
         private void InitialiseSecurityCookie()
         {
-            if (_peImage.SecurityCookie.Offset == 0)
+            if (_peImage.LoadConfigDirectory.Value.SecurityCookieOffset == 0)
             {
                 return;
             }
+            
+            // Generate a randomised security cookie
 
-            // Generate a randomised security cookie, ensuring the default security cookie value is not generated
+            var securityCookieBytes = _processManager.Process.GetArchitecture() == Architecture.X86 ? new byte[4] : new byte[8];
 
-            byte[] securityCookieBytes;
-
-            if (_processManager.IsWow64)
+            new Random().NextBytes(securityCookieBytes);
+            
+            // Ensure the default security cookie wasn't generated
+            
+            if (securityCookieBytes.SequenceEqual(new byte[] {0xBB, 0x40, 0xE6, 0x4E}) || securityCookieBytes.SequenceEqual(new byte[] {0x2B, 0x99, 0x2D, 0xDF, 0xA2, 0x32}))
             {
-                securityCookieBytes = new byte[4];
-
-                new Random().NextBytes(securityCookieBytes);
-
-                if (securityCookieBytes.SequenceEqual(new byte[] {0xBB, 0x40, 0xE6, 0x4E}))
-                {
-                    securityCookieBytes[3] += 1;
-                }
+                securityCookieBytes[^1] += 1;
             }
-
-            else
-            {
-                var partialSecurityCookieBytes = new byte[6];
-
-                new Random().NextBytes(partialSecurityCookieBytes);
-
-                if (partialSecurityCookieBytes.SequenceEqual(new byte[] {0x2B, 0x99, 0x2D, 0xDF, 0xA2, 0x32}))
-                {
-                    partialSecurityCookieBytes[5] += 1;
-                }
-
-                securityCookieBytes = new byte[8];
-
-                partialSecurityCookieBytes.CopyTo(securityCookieBytes, 0);
-            }
-
+            
             // Write the security cookie into the remote process
-
-            _processManager.Memory.Write(DllBaseAddress + _peImage.SecurityCookie.Offset, securityCookieBytes);
+            
+            _processManager.Process.WriteMemory(DllBaseAddress + _peImage.LoadConfigDirectory.Value.SecurityCookieOffset, securityCookieBytes);
         }
 
         private void LoadDependencies()
         {
-            var apiSetMappings = new Lazy<Dictionary<string, string>>(_processManager.ReadApiSetMappings);
-
-            foreach (var importDescriptor in _peImage.ImportDescriptors)
+            var systemFolderPath = Environment.GetFolderPath(_processManager.Process.GetArchitecture() == Architecture.X86 ? Environment.SpecialFolder.SystemX86 : Environment.SpecialFolder.System);
+            
+            void LoadDependency(string dependencyName)
             {
-                // Resolve the name of the dependency if it is an API set
+                // Write the file path of the dependency into the remote process
 
-                if (importDescriptor.Name.StartsWith("api-ms"))
-                {
-                    importDescriptor.Name = apiSetMappings.Value[importDescriptor.Name];
-                }
+                var dependencyFilePath = Path.Combine(systemFolderPath, _processManager.ResolveDllName(dependencyName));
+                
+                var dependencyFilePathBytes = Encoding.Unicode.GetBytes(dependencyFilePath);
+                
+                var dependencyFilePathBuffer = _processManager.Process.AllocateMemory(dependencyFilePathBytes.Length, ProtectionType.ReadWrite);
 
-                // Write the name of the dependency into the remote process
-
-                var dependencyNameBytes = Encoding.Unicode.GetBytes(importDescriptor.Name);
-
-                var dependencyNameBuffer = _processManager.Memory.Allocate(dependencyNameBytes.Length, ProtectionType.ReadWrite);
-
-                _processManager.Memory.Write(dependencyNameBuffer, dependencyNameBytes);
-
+                _processManager.Process.WriteMemory(dependencyFilePathBuffer, dependencyFilePathBytes);
+                
                 // Load the dependency into the remote process, increasing its reference count if it is already loaded
 
-                if (_processManager.CallFunction<IntPtr>(CallingConvention.StdCall, _processManager.GetFunctionAddress("kernel32.dll", "LoadLibraryW"), dependencyNameBuffer.ToInt64()) == IntPtr.Zero)
-                {
-                    throw new Win32Exception("Failed to call LoadLibraryW in the remote process");
-                }
+                var routineAddress = _processManager.GetFunctionAddress("kernel32.dll", "LoadLibraryW");
 
-                _processManager.Memory.Free(dependencyNameBuffer);
+                var dependencyBaseAddress = _processManager.CallRoutine<IntPtr>(CallingConvention.StdCall, routineAddress, dependencyFilePathBuffer.ToInt64());
+                
+                if (dependencyBaseAddress == IntPtr.Zero)
+                {
+                    throw new ApplicationException("Failed to call LoadLibraryW in the remote process");
+                }
             }
 
-            _processManager.Refresh();
+            foreach (var importDescriptor in _peImage.ImportDirectory.Value.ImportDescriptors)
+            {
+                LoadDependency(importDescriptor.Name);
+            }
+            
+            foreach (var delayImportDescriptor in _peImage.DelayImportDirectory.Value.DelayImportDescriptors)
+            {
+                LoadDependency(delayImportDescriptor.Name);
+            }
+            
+            _processManager.RefreshModules();
         }
-
-        private void MapHeaders()
+        
+        private void MapImage()
         {
             // Write the PE headers into the remote process
+            
+            _processManager.Process.WriteMemory(DllBaseAddress, _dllBytes.Slice(0, _peImage.PeHeaders.PEHeader.SizeOfHeaders));
 
-            _processManager.Memory.Write(DllBaseAddress, _dllBytes.Slice(0, _peImage.Headers.PEHeader.SizeOfHeaders));
-
-            _processManager.Memory.Protect(DllBaseAddress, _peImage.Headers.PEHeader.SizeOfHeaders, ProtectionType.ReadOnly);
-        }
-
-        private void MapSections()
-        {
+            _processManager.Process.ProtectMemory(DllBaseAddress, _peImage.PeHeaders.PEHeader.SizeOfHeaders, ProtectionType.ReadOnly);
+            
+            // Write the PE sections into the remote process
+            
             static ProtectionType CalculateSectionProtection(SectionCharacteristics sectionCharacteristics)
             {
                 if (sectionCharacteristics.HasFlag(SectionCharacteristics.MemExecute))
@@ -362,70 +322,80 @@ namespace Lunar
                 return sectionCharacteristics.HasFlag(SectionCharacteristics.MemRead) ? ProtectionType.ReadOnly : ProtectionType.NoAccess;
             }
 
-            foreach (var section in _peImage.Headers.SectionHeaders.Where(section => section.SizeOfRawData != 0 && !section.SectionCharacteristics.HasFlag(SectionCharacteristics.MemDiscardable)))
+            foreach (var section in _peImage.PeHeaders.SectionHeaders.Where(section => section.SizeOfRawData != 0 && !section.SectionCharacteristics.HasFlag(SectionCharacteristics.MemDiscardable)))
             {
                 // Write the section into the remote process
-
+                
                 var sectionAddress = DllBaseAddress + section.VirtualAddress;
 
-                _processManager.Memory.Write(sectionAddress, _dllBytes.Slice(section.PointerToRawData, section.SizeOfRawData));
+                var sectionSize = Math.Min(section.SizeOfRawData, section.VirtualSize);
+                
+                _processManager.Process.WriteMemory(sectionAddress, _dllBytes.Slice(section.PointerToRawData, sectionSize));
 
-                _processManager.Memory.Protect(sectionAddress, section.SizeOfRawData, CalculateSectionProtection(section.SectionCharacteristics));
+                _processManager.Process.ProtectMemory(sectionAddress, section.SizeOfRawData, CalculateSectionProtection(section.SectionCharacteristics));
             }
         }
 
         private void RelocateImage()
         {
-            if (_peImage.Relocations.Count == 0)
-            {
-                return;
-            }
-
             // Calculate the delta from the preferred base address
 
-            var delta = DllBaseAddress.ToInt64() - (long) _peImage.Headers.PEHeader.ImageBase;
-
-            foreach (var relocation in _peImage.Relocations)
+            var delta = DllBaseAddress.ToInt64() - (long) _peImage.PeHeaders.PEHeader.ImageBase;
+            
+            foreach (var relocation in _peImage.BaseRelocationDirectory.Value.BaseRelocations)
             {
                 switch (relocation.Type)
                 {
-                    case RelocationType.HighLow:
+                    case BaseRelocationType.HighLow:
                     {
                         // Perform the relocation
 
-                        MemoryMarshal.Write(_dllBytes.Slice(relocation.Offset).Span, ref Unsafe.AsRef(MemoryMarshal.Read<int>(_dllBytes.Slice(relocation.Offset).Span) + (int) delta));
+                        var relocationValue = MemoryMarshal.Read<int>(_dllBytes.Slice(relocation.Offset).Span) + delta;
+
+                        MemoryMarshal.Write(_dllBytes.Slice(relocation.Offset).Span, ref relocationValue);
 
                         break;
                     }
 
-                    case RelocationType.Dir64:
+                    case BaseRelocationType.Dir64:
                     {
                         // Perform the relocation
 
-                        MemoryMarshal.Write(_dllBytes.Slice(relocation.Offset).Span, ref Unsafe.AsRef(MemoryMarshal.Read<long>(_dllBytes.Slice(relocation.Offset).Span) + delta));
+                        var relocationValue = MemoryMarshal.Read<long>(_dllBytes.Slice(relocation.Offset).Span) + delta;
+
+                        MemoryMarshal.Write(_dllBytes.Slice(relocation.Offset).Span, ref relocationValue);
 
                         break;
                     }
                 }
             }
         }
-
-        private void ValidateArchitecture()
+        
+        private void UnloadDependencies()
         {
-            if (!Environment.Is64BitOperatingSystem)
+            void UnloadDependency(string dependencyName)
             {
-                throw new PlatformNotSupportedException("Native x86 systems are not supported");
+                // Unload the dependency, decreasing its reference count by 1 if it is higher than 1
+                
+                var dependency = _processManager.Modules.First(module => module.Name.Equals(_processManager.ResolveDllName(dependencyName), StringComparison.OrdinalIgnoreCase));
+                
+                if (!_processManager.CallRoutine<bool>(CallingConvention.StdCall, _processManager.GetFunctionAddress("kernel32.dll", "FreeLibrary"), dependency.BaseAddress.ToInt64()))
+                {
+                    throw new ApplicationException("Failed to call FreeLibrary in the remote process");
+                }
             }
-
-            if (!Environment.Is64BitProcess && !_processManager.IsWow64)
+            
+            foreach (var importDescriptor in _peImage.ImportDirectory.Value.ImportDescriptors)
             {
-                throw new NotSupportedException("x64 mapping is not supported from an x86 build");
+                UnloadDependency(importDescriptor.Name);
             }
-
-            if (_processManager.IsWow64 != (_peImage.Headers.PEHeader.Magic == PEMagic.PE32))
+            
+            foreach (var delayImportDescriptor in _peImage.DelayImportDirectory.Value.DelayImportDescriptors)
             {
-                throw new ApplicationException("The architecture of the DLL must match that of the process");
+                UnloadDependency(delayImportDescriptor.Name);
             }
+            
+            _processManager.RefreshModules();
         }
     }
 }

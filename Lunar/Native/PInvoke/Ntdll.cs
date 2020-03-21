@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.InteropServices;
 using Lunar.Native.Enumerations;
 using Lunar.Native.SafeHandle;
@@ -9,11 +9,11 @@ namespace Lunar.Native.PInvoke
     internal static class Ntdll
     {
         [DllImport("ntdll.dll")]
-        internal static extern NtStatus NtQueryInformationProcess(SafeProcessHandle processHandle, ProcessInformationClass processInformationClass, ref byte processInformation, int processInformationLength, out int returnLength);
-
+        internal static extern NtStatus NtCreateThreadEx(out SafeWin32Handle threadHandle, AccessMask accessMask, IntPtr objectAttributes, SafeProcessHandle processHandle, IntPtr startAddress, IntPtr startParameter, ThreadCreationFlags flags, IntPtr zeroBits, int stackSize, int maximumStackSize, IntPtr attributeList);
+        
         [DllImport("ntdll.dll")]
-        internal static extern NtStatus RtlCreateUserThread(SafeProcessHandle processHandle, IntPtr securityDescriptor, bool createSuspended, int stackZeroBits, IntPtr stackReserved, IntPtr stackCommit, IntPtr startAddress, IntPtr startParameter, out SafeThreadHandle threadHandle, IntPtr clientId);
-
+        internal static extern NtStatus NtQueryInformationProcess(SafeProcessHandle processHandle, ProcessInformationClass processInformationClass, ref byte processInformation, int processInformationLength, out int returnLength);
+        
         [DllImport("ntdll.dll")]
         internal static extern int RtlNtStatusToDosError(NtStatus ntStatus);
     }

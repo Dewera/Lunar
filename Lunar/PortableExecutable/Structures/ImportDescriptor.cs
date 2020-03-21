@@ -1,16 +1,17 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using System.Collections.Immutable;
 
 namespace Lunar.PortableExecutable.Structures
 {
     internal sealed class ImportDescriptor
     {
-        internal List<ImportedFunction> Functions { get; }
+        internal ImmutableArray<ImportedFunction> Functions { get; }
 
-        internal string Name { get; set; }
+        internal string Name { get; }
 
-        internal ImportDescriptor(List<ImportedFunction> functions, string name)
+        internal ImportDescriptor(IEnumerable<ImportedFunction> functions, string name)
         {
-            Functions = functions;
+            Functions = functions.ToImmutableArray();
 
             Name = name;
         }
