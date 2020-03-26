@@ -11,8 +11,8 @@ A lightweight native DLL mapping library that supports mapping directly from mem
 - Imports and delay imports are resolved
 - Relocations are performed
 - Image sections are mapped with the correct page protection
-- Exception handlers are initialised for SEH
-- A security cookie generated and initialised
+- Exception handlers are initialised
+- A security cookie is generated and initialised
 - DLL entry point and TLS callbacks are called
 
 ----
