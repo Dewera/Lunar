@@ -5,7 +5,7 @@ namespace Lunar.Native.Enumerations
     [Flags]
     internal enum SymbolOptions
     {
-        UndecorateName = 0x02,
-        DeferredLoads = 0x04
+        UndecorateName = 0x2,
+        DeferredLoads = 0x4
     }
 }

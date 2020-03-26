@@ -2,7 +2,7 @@
 {
     internal enum BaseRelocationType
     {
-        HighLow = 0x03,
-        Dir64 = 0x0A
+        HighLow = 0x3,
+        Dir64 = 0xA
     }
 }

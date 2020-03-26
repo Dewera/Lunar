@@ -8,13 +8,12 @@ A lightweight native DLL mapping library that supports mapping directly from mem
 
 ### Features
 
-- WOW64 and x64 support
 - Imports and delay imports are resolved
-- Necessary relocations are performed
+- Relocations are performed
 - Image sections are mapped with the correct page protection
-- Security cookie is initialised
-- Exception handling is set up for both SEH and C++ exceptions
-- Entry point and TLS callbacks are called with ProcessAttach and ProcessDetach
+- Exception handlers are initialised for SEH
+- A security cookie generated and initialised
+- DLL entry point and TLS callbacks are called
 
 ----
 

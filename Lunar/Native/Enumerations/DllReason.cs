@@ -2,7 +2,7 @@
 {
     internal enum DllReason
     {
-        ProcessDetach = 0x00,
-        ProcessAttach = 0x01
+        ProcessDetach = 0x0,
+        ProcessAttach = 0x1
     }
 }

@@ -5,7 +5,7 @@ namespace Lunar.Native.Enumerations
     [Flags]
     internal enum ThreadCreationFlags
     {
-        SkipThreadAttach = 0x02,
-        HideFromDebugger = 0x04
+        SkipThreadAttach = 0x2,
+        HideFromDebugger = 0x4
     }
 }

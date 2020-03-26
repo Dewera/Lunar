@@ -1,4 +1,5 @@
-﻿using System.ComponentModel;
+﻿using System;
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using Lunar.Native.Enumerations;
 using Lunar.Native.PInvoke;
@@ -7,6 +8,11 @@ namespace Lunar.Shared
 {
     internal static class ExceptionBuilder
     {
+        internal static ApplicationException BuildRemoteRoutineCallException(string routineDescription)
+        {
+            return new ApplicationException($"Failed to call {routineDescription} in the remote process");
+        }
+        
         internal static Win32Exception BuildWin32Exception(string routineName)
         {
             var errorCode = Marshal.GetLastWin32Error();
