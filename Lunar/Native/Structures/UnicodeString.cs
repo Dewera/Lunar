@@ -2,23 +2,29 @@
 
 namespace Lunar.Native.Structures
 {
-    [StructLayout(LayoutKind.Explicit)]
-    internal readonly struct UnicodeString32
+    [StructLayout(LayoutKind.Explicit, Size = 8)]
+    internal struct UnicodeString32
     {
-        [FieldOffset(0x00)]
-        internal readonly short Length;
+        [FieldOffset(0x0)]
+        internal short Length;
 
-        [FieldOffset(0x04)]
-        internal readonly int Buffer;
+        [FieldOffset(0x2)]
+        internal short MaximumLength;
+
+        [FieldOffset(0x4)]
+        internal int Buffer;
     }
 
-    [StructLayout(LayoutKind.Explicit)]
-    internal readonly struct UnicodeString64
+    [StructLayout(LayoutKind.Explicit, Size = 16)]
+    internal struct UnicodeString64
     {
-        [FieldOffset(0x00)]
-        internal readonly short Length;
+        [FieldOffset(0x0)]
+        internal short Length;
 
-        [FieldOffset(0x08)]
-        internal readonly long Buffer;
+        [FieldOffset(0x2)]
+        internal short MaximumLength;
+
+        [FieldOffset(0x8)]
+        internal long Buffer;
     }
 }

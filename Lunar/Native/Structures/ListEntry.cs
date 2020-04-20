@@ -2,19 +2,23 @@
 
 namespace Lunar.Native.Structures
 {
-    [StructLayout(LayoutKind.Sequential)]
-    internal readonly struct ListEntry32
+    [StructLayout(LayoutKind.Explicit, Size = 8)]
+    internal struct ListEntry32
     {
-        internal readonly int Flink;
+        [FieldOffset(0x0)]
+        internal int Flink;
 
-        internal readonly int Blink;
+        [FieldOffset(0x4)]
+        internal int Blink;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    internal readonly struct ListEntry64
+    [StructLayout(LayoutKind.Explicit, Size = 16)]
+    internal struct ListEntry64
     {
-        internal readonly long Flink;
+        [FieldOffset(0x0)]
+        internal long Flink;
 
-        internal readonly long Blink;
+        [FieldOffset(0x8)]
+        internal long Blink;
     }
 }

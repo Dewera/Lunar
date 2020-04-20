@@ -18,11 +18,11 @@ namespace Lunar.PortableExecutable.DataDirectories
         {
             BaseRelocations = ReadBaseRelocations().ToImmutableArray();
         }
-        
+
         private IEnumerable<BaseRelocation> ReadBaseRelocations()
         {
             // Calculate the offset of the first base relocation block
-            
+
             if (!PeHeaders.TryGetDirectoryOffset(PeHeaders.PEHeader.BaseRelocationTableDirectory, out var currentRelocationBlockOffset))
             {
                 yield break;
@@ -38,9 +38,9 @@ namespace Lunar.PortableExecutable.DataDirectories
                 {
                     yield break;
                 }
-                
+
                 // Read the base relocations from the base relocation block
-                
+
                 var relocationBlockSize = (relocationBlock.SizeOfBlock - Unsafe.SizeOf<ImageBaseRelocation>()) / sizeof(short);
 
                 var relocationBlockOffset = RvaToOffset(relocationBlock.VirtualAddress);
@@ -52,7 +52,7 @@ namespace Lunar.PortableExecutable.DataDirectories
                     var relocationOffset = currentRelocationBlockOffset + Unsafe.SizeOf<ImageBaseRelocation>() + sizeof(short) * relocationIndex;
 
                     var relocation = MemoryMarshal.Read<ushort>(PeBytes.Slice(relocationOffset).Span);
-                    
+
                     // The offset is located in the upper 4 bits of the base relocation
 
                     var offset = relocation & 0xFFF;
@@ -60,10 +60,10 @@ namespace Lunar.PortableExecutable.DataDirectories
                     // The type is located in the lower 12 bits of the base relocation
 
                     var type = relocation >> 12;
-                    
+
                     yield return new BaseRelocation(relocationBlockOffset + offset, (BaseRelocationType) type);
                 }
-                
+
                 // Calculate the offset of the next base relocation block
 
                 currentRelocationBlockOffset += relocationBlock.SizeOfBlock;

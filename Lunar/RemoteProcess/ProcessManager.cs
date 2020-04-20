@@ -31,11 +31,11 @@ namespace Lunar.RemoteProcess
 
             Process = process;
         }
-        
+
         internal TStructure CallRoutine<TStructure>(CallingConvention callingConvention, IntPtr functionAddress, params long[] parameters) where TStructure : unmanaged
         {
             // Write the shellcode used to perform the function call into a buffer
-            
+
             var returnBuffer = Process.AllocateMemory(Unsafe.SizeOf<TStructure>(), ProtectionType.ReadWrite);
 
             var routineDescriptor = new RoutineDescriptor(Process.GetArchitecture(), callingConvention, functionAddress, parameters, returnBuffer);
@@ -43,9 +43,9 @@ namespace Lunar.RemoteProcess
             var shellcode = Assembler.AssembleRoutine(routineDescriptor);
 
             var shellcodeBuffer = Process.AllocateMemory(shellcode.Length, ProtectionType.ExecuteReadWrite);
-            
+
             Process.WriteMemory(shellcodeBuffer, shellcode);
-            
+
             // Create a thread to execute the shellcode
 
             var ntStatus = Ntdll.NtCreateThreadEx(out var threadHandle, AccessMask.SpecificRightsAll | AccessMask.StandardRightsAll, IntPtr.Zero, Process.SafeHandle, shellcodeBuffer, IntPtr.Zero, ThreadCreationFlags.HideFromDebugger | ThreadCreationFlags.SkipThreadAttach, IntPtr.Zero, 0, 0, IntPtr.Zero);
@@ -59,9 +59,9 @@ namespace Lunar.RemoteProcess
             {
                 throw ExceptionBuilder.BuildWin32Exception("WaitForSingleObject");
             }
-            
+
             threadHandle.Dispose();
-            
+
             Process.FreeMemory(shellcodeBuffer);
 
             try
@@ -96,7 +96,7 @@ namespace Lunar.RemoteProcess
 
             return GetFunctionAddress(functionModule, exportedFunction);
         }
-        
+
         internal string ResolveDllName(string dllName)
         {
             if (dllName.StartsWith("api-ms") || dllName.StartsWith("ext-ms"))
@@ -110,7 +110,7 @@ namespace Lunar.RemoteProcess
         internal void RefreshModules()
         {
             Modules.Clear();
-            
+
             Modules.AddRange(_pebAccessor.ReadModuleEntries());
         }
 
@@ -122,7 +122,7 @@ namespace Lunar.RemoteProcess
             {
                 return module.BaseAddress + exportedFunction.Offset;
             }
-            
+
             // Get the module and function that the function is forwarded to
 
             var forwardedData = exportedFunction.ForwarderString.Split(".");

@@ -17,6 +17,12 @@ A lightweight native DLL mapping library that supports mapping directly from mem
 
 ----
 
+### Caveats
+
+- Mapping requires the presence of a PDB for ntdll.dll on disk. The library will automatically download the latest version of this PDB and cache it on disk.
+
+----
+
 ### Getting started
 
 The example below demonstrates a simple implementation of the library
@@ -42,14 +48,14 @@ libraryMapper.UnmapLibrary();
 ```c#
 LibraryMapper(Process, Memory<byte>)
 ```
-Provides the functionality to map a DLL from memory into a remote process
+Provides the functionality to map a DLL from memory into a process
 
 
 ```c#
 LibraryMapper(Process, string)
 ```
 
-Provides the functionality to map a DLL from disk into a remote process
+Provides the functionality to map a DLL from disk into a process
 
 ----
 
@@ -59,7 +65,7 @@ Provides the functionality to map a DLL from disk into a remote process
 DllBaseAddress
 ```
 
-The base address of the DLL in the remote process after it has been mapped
+The base address of the DLL in the process after it has been mapped
 
 ----
 
@@ -69,16 +75,10 @@ The base address of the DLL in the remote process after it has been mapped
 MapLibrary()
 ```
 
-Maps the DLL into the remote process
+Maps the DLL into the process
 
 ```c#
 UnmapLibrary()
 ```
 
-Unmaps the DLL from the remote process
-
-----
-
-### Caveats
-
-- Mapping requires the presence of a PDB for ntdll.dll, and, so, the library will automatically download the latest version of this PDB from the Microsoft symbol server and cache it in `%appdata%/Lunar/Dependencies`
+Unmaps the DLL from the process

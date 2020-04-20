@@ -28,7 +28,7 @@ namespace Lunar.RemoteProcess
             _pebData = ReadPebData(process);
 
             _process = process;
-            
+
             ApiSetMappings = new Lazy<ImmutableDictionary<string, string>>(ReadApiSetMappings);
         }
 
@@ -37,7 +37,7 @@ namespace Lunar.RemoteProcess
             if (_process.GetArchitecture() == Architecture.X86)
             {
                 var wow64FilePathRegex = new Regex("System32", RegexOptions.IgnoreCase);
-                
+
                 // Read the loader data of the WOW64 PEB
 
                 var loaderData = _process.ReadStructure<PebLdrData32>(_pebData.Loader);
@@ -129,22 +129,22 @@ namespace Lunar.RemoteProcess
             if (process.GetArchitecture() == Architecture.X86)
             {
                 // Query the remote process for the address of its WOW64 PEB
-                
+
                 var wow64PebAddressBytes = new byte[IntPtr.Size];
-                
+
                 var ntStatus = Ntdll.NtQueryInformationProcess(process.SafeHandle, ProcessInformationClass.Wow64Information, ref wow64PebAddressBytes[0], wow64PebAddressBytes.Length, out _);
 
                 if (ntStatus != NtStatus.Success)
                 {
                     throw ExceptionBuilder.BuildWin32Exception("NtQueryInformationProcess", ntStatus);
                 }
-                
+
                 var wow64PebAddress = MemoryMarshal.Read<IntPtr>(wow64PebAddressBytes);
-                
+
                 // Read the WOW64 PEB data
-                
+
                 var wow64Peb = process.ReadStructure<Peb32>(wow64PebAddress);
-                
+
                 return new PebData(new IntPtr(wow64Peb.ApiSetMap), new IntPtr(wow64Peb.Ldr));
             }
 
@@ -160,11 +160,11 @@ namespace Lunar.RemoteProcess
                 {
                     throw ExceptionBuilder.BuildWin32Exception("NtQueryInformationProcess", ntStatus);
                 }
-                
+
                 var processBasicInformation = MemoryMarshal.Read<ProcessBasicInformation64>(processBasicInformationBytes);
-                
+
                 // Read the PEB data
-                
+
                 var peb = process.ReadStructure<Peb64>(new IntPtr(processBasicInformation.PebBaseAddress));
 
                 return new PebData(new IntPtr(peb.ApiSetMap), new IntPtr(peb.Ldr));
@@ -174,11 +174,11 @@ namespace Lunar.RemoteProcess
         private ImmutableDictionary<string, string> ReadApiSetMappings()
         {
             var apiSetMappings = new Dictionary<string, string>();
-            
+
             // Read the API set namespace
 
             var apiSetNamespace = _process.ReadStructure<ApiSetNamespace>(_pebData.ApiSetMap);
-            
+
             for (var namespaceEntryIndex = 0; namespaceEntryIndex < apiSetNamespace.Count; namespaceEntryIndex ++)
             {
                 // Read the namespace entry
@@ -194,7 +194,7 @@ namespace Lunar.RemoteProcess
                 var namespaceEntryNameBytes = _process.ReadMemory(namespaceEntryNameAddress, namespaceEntry.NameLength);
 
                 var namespaceEntryName = $"{Encoding.Unicode.GetString(namespaceEntryNameBytes.Span)}.dll";
-                
+
                 // Read the value entry that the namespace entry maps to
 
                 var valueEntryAddress = _pebData.ApiSetMap + namespaceEntry.ValueOffset;
@@ -205,7 +205,7 @@ namespace Lunar.RemoteProcess
                 {
                     continue;
                 }
-                
+
                 // Read the name of the value entry
 
                 var valueEntryNameAddress = _pebData.ApiSetMap + valueEntry.ValueOffset;
@@ -213,10 +213,10 @@ namespace Lunar.RemoteProcess
                 var valueEntryNameBytes = _process.ReadMemory(valueEntryNameAddress, valueEntry.ValueCount);
 
                 var valueEntryName = Encoding.Unicode.GetString(valueEntryNameBytes.Span);
-                
+
                 apiSetMappings.Add(namespaceEntryName, valueEntryName);
             }
-            
+
             return apiSetMappings.ToImmutableDictionary();
         }
     }

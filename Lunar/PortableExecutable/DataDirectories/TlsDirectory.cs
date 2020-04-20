@@ -35,9 +35,9 @@ namespace Lunar.PortableExecutable.DataDirectories
                 {
                     yield break;
                 }
-                
+
                 var tlsCallbacksOffset = RvaToOffset(tlsTable.AddressOfCallbacks - (int) PeHeaders.PEHeader.ImageBase);
-                
+
                 // Read the offsets of the TLS callbacks
 
                 for (var tlsCallbackIndex = 0;; tlsCallbackIndex ++)

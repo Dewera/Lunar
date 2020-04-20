@@ -39,21 +39,21 @@ namespace Lunar.PortableExecutable.DataDirectories
                 {
                     break;
                 }
-                
+
                 // Read the name of the delay import descriptor
-                
+
                 var descriptorNameOffset = RvaToOffset(descriptor.DllNameRva);
 
                 var descriptorName = ReadNullTerminatedString(descriptorNameOffset);
-                
+
                 // Read the functions imported under the delay import descriptor
-                
+
                 var descriptorThunkOffset = RvaToOffset(descriptor.ImportNameTableRva);
 
                 var importAddressTableOffset = RvaToOffset(descriptor.ImportAddressTableRva);
 
                 var delayImportedFunctions = ReadDelayImportedFunctions(descriptorThunkOffset, importAddressTableOffset);
-                
+
                 yield return new ImportDescriptor(delayImportedFunctions, descriptorName);
             }
         }
@@ -123,7 +123,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                     functionDataOffset = RvaToOffset((int) functionThunkData);
                 }
-                
+
                 // Read the name of the function
 
                 var functionName = ReadNullTerminatedString(functionDataOffset + sizeof(short));

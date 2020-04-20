@@ -7,7 +7,7 @@ namespace Lunar.Tests
     public class X86Tests : MappingTester
     {
         public X86Tests() : base(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "notepad.exe"), Path.Combine(Path.GetFullPath(@"..\..\..\Dll"), "X64.dll")) { }
-        
+
         [Fact]
         public void TestMap()
         {

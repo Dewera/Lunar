@@ -2,7 +2,7 @@
 
 namespace Lunar.Native.Structures
 {
-    [StructLayout(LayoutKind.Explicit)]
+    [StructLayout(LayoutKind.Explicit, Size = 40)]
     internal readonly struct ImageExportDirectory
     {
         [FieldOffset(0x10)]

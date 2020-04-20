@@ -2,7 +2,7 @@
 
 namespace Lunar.Native.Structures
 {
-    [StructLayout(LayoutKind.Explicit)]
+    [StructLayout(LayoutKind.Explicit, Size = 168)]
     internal readonly struct LdrDataTableEntry32
     {
         [FieldOffset(0x08)]
@@ -18,7 +18,7 @@ namespace Lunar.Native.Structures
         internal readonly UnicodeString32 BaseDllName;
     }
 
-    [StructLayout(LayoutKind.Explicit)]
+    [StructLayout(LayoutKind.Explicit, Size = 288)]
     internal readonly struct LdrDataTableEntry64
     {
         [FieldOffset(0x10)]

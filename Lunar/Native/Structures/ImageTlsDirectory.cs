@@ -2,14 +2,14 @@
 
 namespace Lunar.Native.Structures
 {
-    [StructLayout(LayoutKind.Explicit)]
+    [StructLayout(LayoutKind.Explicit, Size = 24)]
     internal readonly struct ImageTlsDirectory32
     {
-        [FieldOffset(0x0C)]
+        [FieldOffset(0xC)]
         internal readonly int AddressOfCallbacks;
     }
 
-    [StructLayout(LayoutKind.Explicit)]
+    [StructLayout(LayoutKind.Explicit, Size = 40)]
     internal readonly struct ImageTlsDirectory64
     {
         [FieldOffset(0x18)]

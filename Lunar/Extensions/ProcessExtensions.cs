@@ -39,7 +39,7 @@ namespace Lunar.Extensions
 
             return isWow64Process ? Architecture.X86 : Architecture.X64;
         }
-        
+
         internal static void ProtectMemory(this Process process, IntPtr baseAddress, int size, ProtectionType protectionType)
         {
             if (!Kernel32.VirtualProtectEx(process.SafeHandle, baseAddress, size, protectionType, out _))
@@ -51,7 +51,7 @@ namespace Lunar.Extensions
         internal static ReadOnlyMemory<byte> ReadMemory(this Process process, IntPtr baseAddress, int size)
         {
             var block = new byte[size];
-            
+
             if (!Kernel32.ReadProcessMemory(process.SafeHandle, baseAddress, out block[0], block.Length, out _))
             {
                 throw ExceptionBuilder.BuildWin32Exception("ReadProcessMemory");
@@ -63,7 +63,7 @@ namespace Lunar.Extensions
         internal static TStructure ReadStructure<TStructure>(this Process process, IntPtr baseAddress) where TStructure : unmanaged
         {
             var block = process.ReadMemory(baseAddress, Unsafe.SizeOf<TStructure>());
-            
+
             return MemoryMarshal.Read<TStructure>(block.Span);
         }
 

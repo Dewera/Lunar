@@ -12,16 +12,16 @@ namespace Lunar.Tests
         protected MappingTester(string processFilePath, string dllFilePath)
         {
             var processStartInfo = new ProcessStartInfo {CreateNoWindow = true, FileName = processFilePath, UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden};
-            
+
             _process = new Process {StartInfo = processStartInfo};
-            
+
             _process.Start();
 
             _process.WaitForInputIdle();
-            
+
             LibraryMapper = new LibraryMapper(_process, dllFilePath);
         }
-        
+
         public void Dispose()
         {
             _process.Kill();

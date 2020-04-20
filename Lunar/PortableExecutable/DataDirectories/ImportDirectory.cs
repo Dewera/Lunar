@@ -39,7 +39,7 @@ namespace Lunar.PortableExecutable.DataDirectories
                 {
                     break;
                 }
-                
+
                 // Read the import descriptor name
 
                 var descriptorNameOffset = RvaToOffset(descriptor.Name);
@@ -53,11 +53,11 @@ namespace Lunar.PortableExecutable.DataDirectories
                 var importAddressTableOffset = RvaToOffset(descriptor.FirstThunk);
 
                 var importedFunctions = ReadImportedFunctions(descriptorThunkOffset, importAddressTableOffset);
-                
+
                 yield return new ImportDescriptor(importedFunctions, descriptorName);
             }
         }
-        
+
         private IEnumerable<ImportedFunction> ReadImportedFunctions(int descriptorThunkOffset, int importAddressTableOffset)
         {
             for (var functionIndex = 0;; functionIndex ++)
@@ -123,7 +123,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                     functionDataOffset = RvaToOffset((int) functionThunkData);
                 }
-                
+
                 // Read the name of the function
 
                 var functionName = ReadNullTerminatedString(functionDataOffset + sizeof(short));
