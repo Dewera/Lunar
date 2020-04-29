@@ -127,6 +127,11 @@ namespace Lunar.RemoteProcess
 
             var forwardedData = exportedFunction.ForwarderString.Split(".");
 
+            if (forwardedData[0].StartsWith("api-ms") || forwardedData[0].StartsWith("ext-ms"))
+            {
+                return module.BaseAddress + exportedFunction.Offset;
+            }
+
             var forwardedModule = ResolveDllName($"{forwardedData[0]}.dll");
 
             var forwardedFunction = forwardedData[1];
