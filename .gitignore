@@ -346,3 +346,5 @@ MigrationBackup/
 
 # Rider
 .idea/
+
+!/Lunar.Tests/TestLibraries/*
