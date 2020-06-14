@@ -1,78 +1,124 @@
 ﻿using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Lunar.Native.Enumerations;
 using Lunar.Native.PInvoke;
-using Lunar.Shared;
 
 namespace Lunar.Extensions
 {
     internal static class ProcessExtensions
     {
-        internal static IntPtr AllocateMemory(this Process process, int size, ProtectionType protectionType)
+        internal static IntPtr AllocateBuffer(this Process process, int size, bool executable = false, bool topDown = false)
         {
-            var block = Kernel32.VirtualAllocEx(process.SafeHandle, IntPtr.Zero, size, AllocationType.Commit | AllocationType.Reserve, protectionType);
+            var allocationType = AllocationType.Commit | AllocationType.Reserve;
 
-            if (block == IntPtr.Zero)
+            if (topDown)
             {
-                throw ExceptionBuilder.BuildWin32Exception("VirtualAllocEx");
+                allocationType |= AllocationType.TopDown;
             }
 
-            return block;
+            var protectionType = executable ? ProtectionType.ExecuteReadWrite : ProtectionType.ReadWrite;
+
+            var buffer = Kernel32.VirtualAllocEx(process.SafeHandle, IntPtr.Zero, size, allocationType, protectionType);
+
+            if (buffer == IntPtr.Zero)
+            {
+                throw new Win32Exception();
+            }
+
+            return buffer;
         }
 
-        internal static void FreeMemory(this Process process, IntPtr baseAddress)
+        internal static void FreeBuffer(this Process process, IntPtr address)
         {
-            if (!Kernel32.VirtualFreeEx(process.SafeHandle, baseAddress, 0, FreeType.Release))
+            if (!Kernel32.VirtualFreeEx(process.SafeHandle, address, 0, FreeType.Release))
             {
-                throw ExceptionBuilder.BuildWin32Exception("VirtualFreeEx");
+                throw new Win32Exception();
             }
         }
 
         internal static Architecture GetArchitecture(this Process process)
         {
+            if (!Environment.Is64BitOperatingSystem)
+            {
+                return Architecture.X86;
+            }
+
             if (!Kernel32.IsWow64Process(process.SafeHandle, out var isWow64Process))
             {
-                throw ExceptionBuilder.BuildWin32Exception("IsWow64Process");
+                throw new Win32Exception();
             }
 
             return isWow64Process ? Architecture.X86 : Architecture.X64;
         }
 
-        internal static void ProtectMemory(this Process process, IntPtr baseAddress, int size, ProtectionType protectionType)
+        internal static ProtectionType ProtectBuffer(this Process process, IntPtr address, int size, ProtectionType protectionType)
         {
-            if (!Kernel32.VirtualProtectEx(process.SafeHandle, baseAddress, size, protectionType, out _))
+            if (!Kernel32.VirtualProtectEx(process.SafeHandle, address, size, protectionType, out var oldProtectionType))
             {
-                throw ExceptionBuilder.BuildWin32Exception("VirtualProtectEx");
+                throw new Win32Exception();
+            }
+
+            return oldProtectionType;
+        }
+
+        internal static Span<TStructure> ReadBuffer<TStructure>(this Process process, IntPtr address, int size) where TStructure : unmanaged
+        {
+            var buffer = new byte[Unsafe.SizeOf<TStructure>() * size];
+
+            if (!Kernel32.ReadProcessMemory(process.SafeHandle, address, out buffer[0], buffer.Length, out _))
+            {
+                throw new Win32Exception();
+            }
+
+            return MemoryMarshal.Cast<byte, TStructure>(buffer);
+        }
+
+        internal static TStructure ReadStructure<TStructure>(this Process process, IntPtr address) where TStructure : unmanaged
+        {
+            var buffer = process.ReadBuffer<byte>(address, Unsafe.SizeOf<TStructure>());
+
+            return MemoryMarshal.Read<TStructure>(buffer);
+        }
+
+        internal static void WriteBuffer<TStructure>(this Process process, IntPtr address, Span<TStructure> buffer, bool adjustProtection = false) where TStructure : unmanaged
+        {
+            if (adjustProtection)
+            {
+                var oldProtectionType = process.ProtectBuffer(address, buffer.Length * Unsafe.SizeOf<TStructure>(), ProtectionType.ReadWrite);
+
+                try
+                {
+                    if (!Kernel32.WriteProcessMemory(process.SafeHandle, address, in MemoryMarshal.AsBytes(buffer)[0], buffer.Length * Unsafe.SizeOf<TStructure>(), out _))
+                    {
+                        throw new Win32Exception();
+                    }
+                }
+
+                finally
+                {
+                    process.ProtectBuffer(address, buffer.Length * Unsafe.SizeOf<TStructure>(), oldProtectionType);
+                }
+            }
+
+            else
+            {
+                if (!Kernel32.WriteProcessMemory(process.SafeHandle, address, in MemoryMarshal.AsBytes(buffer)[0], buffer.Length * Unsafe.SizeOf<TStructure>(), out _))
+                {
+                    throw new Win32Exception();
+                }
             }
         }
 
-        internal static ReadOnlyMemory<byte> ReadMemory(this Process process, IntPtr baseAddress, int size)
+        internal static void WriteStructure<TStructure>(this Process process, IntPtr address, TStructure structure, bool adjustProtection = false) where TStructure : unmanaged
         {
-            var block = new byte[size];
+            Span<byte> buffer = stackalloc byte[Unsafe.SizeOf<TStructure>()];
 
-            if (!Kernel32.ReadProcessMemory(process.SafeHandle, baseAddress, out block[0], block.Length, out _))
-            {
-                throw ExceptionBuilder.BuildWin32Exception("ReadProcessMemory");
-            }
+            MemoryMarshal.Write(buffer, ref structure);
 
-            return block;
-        }
-
-        internal static TStructure ReadStructure<TStructure>(this Process process, IntPtr baseAddress) where TStructure : unmanaged
-        {
-            var block = process.ReadMemory(baseAddress, Unsafe.SizeOf<TStructure>());
-
-            return MemoryMarshal.Read<TStructure>(block.Span);
-        }
-
-        internal static void WriteMemory(this Process process, IntPtr baseAddress, ReadOnlyMemory<byte> block)
-        {
-            if (!Kernel32.WriteProcessMemory(process.SafeHandle, baseAddress, block.Span[0], block.Length, out _))
-            {
-                throw ExceptionBuilder.BuildWin32Exception("WriteProcessMemory");
-            }
+            process.WriteBuffer(address, buffer, adjustProtection);
         }
     }
 }

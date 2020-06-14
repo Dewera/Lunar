@@ -2,17 +2,17 @@
 {
     internal sealed class ImportedFunction
     {
-        internal string? Name { get; }
+        internal int IatOffset { get; }
 
-        internal int Offset { get; }
+        internal string? Name { get; }
 
         internal int Ordinal { get; }
 
-        internal ImportedFunction(string? name, int offset, int ordinal)
+        internal ImportedFunction(int iatOffset, string? name, int ordinal)
         {
-            Name = name;
+            IatOffset = iatOffset;
 
-            Offset = offset;
+            Name = name;
 
             Ordinal = ordinal;
         }

@@ -1,17 +1,27 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Lunar.Native.Structures
 {
     [StructLayout(LayoutKind.Explicit, Size = 88)]
-    internal struct SymbolInfo
+    internal readonly struct SymbolInfo
     {
         [FieldOffset(0x0)]
-        internal int SizeOfStruct;
+        private readonly int SizeOfStruct;
 
         [FieldOffset(0x38)]
-        internal long Address;
+        internal readonly long Address;
 
         [FieldOffset(0x50)]
-        internal int MaxNameLen;
+        private readonly int MaxNameLen;
+
+        internal SymbolInfo(int nameBufferSize)
+        {
+            SizeOfStruct = Unsafe.SizeOf<SymbolInfo>();
+
+            Address = 0;
+
+            MaxNameLen = nameBufferSize;
+        }
     }
 }

@@ -7,6 +7,12 @@ namespace Lunar.Native.Structures
     {
         [FieldOffset(0x3C)]
         internal readonly int SecurityCookie;
+
+        [FieldOffset(0x40)]
+        internal readonly int SEHandlerTable;
+
+        [FieldOffset(0x44)]
+        internal readonly int SEHandlerCount;
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 264)]

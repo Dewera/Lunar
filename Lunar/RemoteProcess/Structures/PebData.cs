@@ -4,15 +4,15 @@ namespace Lunar.RemoteProcess.Structures
 {
     internal sealed class PebData
     {
-        internal IntPtr ApiSetMap { get; }
+        internal IntPtr ApiSetMapAddress { get; }
 
-        internal IntPtr Loader { get; }
+        internal IntPtr LoaderAddress { get; }
 
-        internal PebData(IntPtr apiSetMap, IntPtr loader)
+        internal PebData(IntPtr apiSetMapAddress, IntPtr loaderAddress)
         {
-            ApiSetMap = apiSetMap;
+            ApiSetMapAddress = apiSetMapAddress;
 
-            Loader = loader;
+            LoaderAddress = loaderAddress;
         }
     }
 }

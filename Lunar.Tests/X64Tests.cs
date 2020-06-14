@@ -1,30 +1,106 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
-using System.Threading;
 using Xunit;
 
 namespace Lunar.Tests
 {
-    public sealed class X64Tests : MappingTester
+    public sealed class X64Tests : IDisposable
     {
-        public X64Tests() : base(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "notepad.exe"), Path.Combine(Path.GetFullPath(@"..\..\..\Dll"), "X64.dll")) { }
+        private readonly Process _process;
 
-        [Fact]
-        public void TestMap()
+        public X64Tests()
         {
-            LibraryMapper.MapLibrary();
+            var cmdFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe");
 
-            Assert.NotEqual(LibraryMapper.DllBaseAddress, IntPtr.Zero);
+            _process = new Process {StartInfo = {FileName = cmdFilePath, UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden}};
+
+            _process.Start();
+        }
+
+        public void Dispose()
+        {
+            _process.Kill();
+
+            _process.Dispose();
         }
 
         [Fact]
-        public void TestUnmap()
+        public void TestMapBasic()
         {
-            LibraryMapper.MapLibrary();
+            var libraryFilePath = Path.Combine(Path.GetFullPath(@"..\..\..\TestLibraries\x64"), "Basic.dll");
 
-            LibraryMapper.UnmapLibrary();
+            var libraryMapper = new LibraryMapper(_process, libraryFilePath);
 
-            Assert.Equal(LibraryMapper.DllBaseAddress, IntPtr.Zero);
+            libraryMapper.MapLibrary();
+
+            Assert.NotEqual(libraryMapper.DllBaseAddress, IntPtr.Zero);
+        }
+
+        [Fact]
+        public void TestMapException()
+        {
+            var libraryFilePath = Path.Combine(Path.GetFullPath(@"..\..\..\TestLibraries\x64"), "Exception.dll");
+
+            var libraryMapper = new LibraryMapper(_process, libraryFilePath);
+
+            libraryMapper.MapLibrary();
+
+            Assert.NotEqual(libraryMapper.DllBaseAddress, IntPtr.Zero);
+        }
+
+        [Fact]
+        public void TestMapTlsCallBack()
+        {
+            var libraryFilePath = Path.Combine(Path.GetFullPath(@"..\..\..\TestLibraries\x64"), "TlsCallBack.dll");
+
+            var libraryMapper = new LibraryMapper(_process, libraryFilePath);
+
+            libraryMapper.MapLibrary();
+
+            Assert.NotEqual(libraryMapper.DllBaseAddress, IntPtr.Zero);
+        }
+
+        [Fact]
+        public void TestUnmapBasic()
+        {
+            var libraryFilePath = Path.Combine(Path.GetFullPath(@"..\..\..\TestLibraries\x64"), "Basic.dll");
+
+            var libraryMapper = new LibraryMapper(_process, libraryFilePath);
+
+            libraryMapper.MapLibrary();
+
+            libraryMapper.UnmapLibrary();
+
+            Assert.Equal(libraryMapper.DllBaseAddress, IntPtr.Zero);
+        }
+
+        [Fact]
+        public void TestUnmapException()
+        {
+            var libraryFilePath = Path.Combine(Path.GetFullPath(@"..\..\..\TestLibraries\x64"), "Exception.dll");
+
+            var libraryMapper = new LibraryMapper(_process, libraryFilePath);
+
+            libraryMapper.MapLibrary();
+
+            libraryMapper.UnmapLibrary();
+
+            Assert.Equal(libraryMapper.DllBaseAddress, IntPtr.Zero);
+        }
+
+        [Fact]
+        public void TestUnmapTlsCallBack()
+        {
+            var libraryFilePath = Path.Combine(Path.GetFullPath(@"..\..\..\TestLibraries\x64"), "TlsCallBack.dll");
+
+            var libraryMapper = new LibraryMapper(_process, libraryFilePath);
+
+            libraryMapper.MapLibrary();
+
+            libraryMapper.UnmapLibrary();
+
+            Assert.Equal(libraryMapper.DllBaseAddress, IntPtr.Zero);
         }
     }
 }

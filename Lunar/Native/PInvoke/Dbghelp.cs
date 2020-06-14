@@ -7,19 +7,19 @@ namespace Lunar.Native.PInvoke
 {
     internal static class Dbghelp
     {
-        [DllImport("dbghelp.dll", SetLastError = true)]
-        internal static extern bool SymCleanup(SafeProcessHandle processHandle);
+        [DllImport("dbghelp.dll", ExactSpelling = true)]
+        internal static extern void SymCleanup(SafeProcessHandle processHandle);
 
-        [DllImport("dbghelp.dll", SetLastError = true)]
-        internal static extern bool SymFromName(SafeProcessHandle processHandle, string name, ref byte symbolInfo);
+        [DllImport("dbghelp.dll", ExactSpelling = true, SetLastError = true)]
+        internal static extern bool SymFromName(SafeProcessHandle processHandle, string name, out byte symbolInfo);
 
-        [DllImport("dbghelp.dll", SetLastError = true)]
+        [DllImport("dbghelp.dll", ExactSpelling = true, SetLastError = true)]
         internal static extern bool SymInitialize(SafeProcessHandle processHandle, string? userSearchPath, bool invadeProcess);
 
-        [DllImport("dbghelp.dll", SetLastError = true)]
+        [DllImport("dbghelp.dll", ExactSpelling = true, SetLastError = true)]
         internal static extern long SymLoadModuleEx(SafeProcessHandle processHandle, IntPtr fileHandle, string imageName, string? moduleName, long baseOfDll, int dllSize, IntPtr data, int flags);
 
-        [DllImport("dbghelp.dll")]
+        [DllImport("dbghelp.dll", ExactSpelling = true)]
         internal static extern void SymSetOptions(SymbolOptions symbolOptions);
     }
 }

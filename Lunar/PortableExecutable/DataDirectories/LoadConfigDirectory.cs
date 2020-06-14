@@ -1,49 +1,69 @@
 ﻿using System;
 using System.Reflection.PortableExecutable;
-using System.Runtime.InteropServices;
 using Lunar.Native.Structures;
+using Lunar.PortableExecutable.Structures;
 
 namespace Lunar.PortableExecutable.DataDirectories
 {
     internal sealed class LoadConfigDirectory : DataDirectory
     {
-        internal int SecurityCookieOffset { get; }
+        internal SecurityCookie? SecurityCookie { get; }
 
-        internal LoadConfigDirectory(ReadOnlyMemory<byte> peBytes, PEHeaders peHeaders) : base(peBytes, peHeaders)
+        internal SehTable? SehTable { get; }
+
+        internal LoadConfigDirectory(Memory<byte> imageBytes, PEHeaders headers) : base(imageBytes, headers)
         {
-            SecurityCookieOffset = ReadSecurityCookieOffset();
+            SecurityCookie = ReadSecurityCookie();
+
+            SehTable = ReadSehTable();
         }
 
-        private int ReadSecurityCookieOffset()
+        private SecurityCookie? ReadSecurityCookie()
         {
-            // Calculate the offset of the load config table
-
-            if (!PeHeaders.TryGetDirectoryOffset(PeHeaders.PEHeader.LoadConfigTableDirectory, out var loadConfigTableOffset))
+            if (!Headers.TryGetDirectoryOffset(Headers.PEHeader.LoadConfigTableDirectory, out var loadConfigDirectoryOffset))
             {
-                return 0;
+                return null;
             }
 
-            if (PeHeaders.PEHeader.Magic == PEMagic.PE32)
+            int securityCookieRva;
+
+            if (Headers.PEHeader.Magic == PEMagic.PE32)
             {
-                // Read the load config table
+                // Read the load config directory
 
-                var loadConfigTable = MemoryMarshal.Read<ImageLoadConfigDirectory32>(PeBytes.Slice(loadConfigTableOffset).Span);
+                var loadConfigDirectory = ReadStructure<ImageLoadConfigDirectory32>(loadConfigDirectoryOffset);
 
-                // Calculate the offset of the security cookie
-
-                return loadConfigTable.SecurityCookie == 0 ? 0 : loadConfigTable.SecurityCookie - (int) PeHeaders.PEHeader.ImageBase;
+                securityCookieRva = loadConfigDirectory.SecurityCookie == 0 ? 0 : VaToRva(loadConfigDirectory.SecurityCookie);
             }
 
             else
             {
-                // Read the load config table
+                // Read the load config directory
 
-                var loadConfigTable = MemoryMarshal.Read<ImageLoadConfigDirectory64>(PeBytes.Slice(loadConfigTableOffset).Span);
+                var loadConfigDirectory = ReadStructure<ImageLoadConfigDirectory64>(loadConfigDirectoryOffset);
 
-                // Calculate the offset of the security cookie
-
-                return loadConfigTable.SecurityCookie == 0 ? 0 : (int) (loadConfigTable.SecurityCookie - (long) PeHeaders.PEHeader.ImageBase);
+                securityCookieRva = loadConfigDirectory.SecurityCookie == 0 ? 0 : VaToRva(loadConfigDirectory.SecurityCookie);
             }
+
+            return new SecurityCookie(securityCookieRva);
+        }
+
+        private SehTable? ReadSehTable()
+        {
+            if (Headers.PEHeader.Magic == PEMagic.PE32Plus || !Headers.TryGetDirectoryOffset(Headers.PEHeader.LoadConfigTableDirectory, out var loadConfigDirectoryOffset))
+            {
+                return null;
+            }
+
+            // Read the load config directory
+
+            var loadConfigDirectory = ReadStructure<ImageLoadConfigDirectory32>(loadConfigDirectoryOffset);
+
+            var handlerCount = loadConfigDirectory.SEHandlerCount == 0 ? -1 : loadConfigDirectory.SEHandlerCount;
+
+            var tableRva = loadConfigDirectory.SEHandlerTable == 0 ? -1 : VaToRva(loadConfigDirectory.SEHandlerTable);
+
+            return new SehTable(handlerCount, tableRva);
         }
     }
 }

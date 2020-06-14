@@ -6,19 +6,19 @@
 
         internal string Name { get; }
 
-        internal int Offset { get; }
-
         internal int Ordinal { get; }
 
-        internal ExportedFunction(string? forwarderString, string name, int offset, int ordinal)
+        internal int Rva { get; }
+
+        internal ExportedFunction(string? forwarderString, string name, int ordinal, int rva)
         {
             ForwarderString = forwarderString;
 
             Name = name;
 
-            Offset = offset;
-
             Ordinal = ordinal;
+
+            Rva = rva;
         }
     }
 }

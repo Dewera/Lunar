@@ -1,24 +1,26 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using Lunar.PortableExecutable;
+using Lunar.PortableExecutable.Structures;
 
 namespace Lunar.RemoteProcess.Structures
 {
     internal sealed class Module
     {
-        internal IntPtr BaseAddress { get; }
+        internal IntPtr Address { get; }
+
+        internal Lazy<IEnumerable<ExportedFunction>> ExportedFunctions { get; }
 
         internal string Name { get; }
 
-        internal Lazy<PeImage> PeImage { get; }
-
-        internal Module(IntPtr baseAddress, string name, string filePath)
+        internal Module(IntPtr address, string filePath, string name)
         {
-            BaseAddress = baseAddress;
+            Address = address;
+
+            ExportedFunctions = new Lazy<IEnumerable<ExportedFunction>>(() => new PeImage(File.ReadAllBytes(filePath)).ExportDirectory.ExportedFunctions);
 
             Name = name;
-
-            PeImage = new Lazy<PeImage>(() => new PeImage(File.ReadAllBytes(filePath)));
         }
     }
 }

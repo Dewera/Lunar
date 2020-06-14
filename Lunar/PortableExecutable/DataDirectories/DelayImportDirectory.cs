@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using Lunar.Native.Structures;
 using Lunar.PortableExecutable.Structures;
 
@@ -11,128 +9,118 @@ namespace Lunar.PortableExecutable.DataDirectories
 {
     internal sealed class DelayImportDirectory : DataDirectory
     {
-        internal ImmutableArray<ImportDescriptor> DelayImportDescriptors { get; }
+        internal IEnumerable<ImportDescriptor> DelayLoadImportDescriptors { get; }
 
-        internal DelayImportDirectory(ReadOnlyMemory<byte> peBytes, PEHeaders peHeaders) : base(peBytes, peHeaders)
+        internal DelayImportDirectory(Memory<byte> imageBytes, PEHeaders headers) : base(imageBytes, headers)
         {
-            DelayImportDescriptors = ReadDelayImportDescriptors().ToImmutableArray();
+            DelayLoadImportDescriptors = ReadDelayLoadImportDescriptors();
         }
 
-        private IEnumerable<ImportDescriptor> ReadDelayImportDescriptors()
+        private IEnumerable<ImportDescriptor> ReadDelayLoadImportDescriptors()
         {
-            // Calculate the offset of the delay import table
-
-            if (!PeHeaders.TryGetDirectoryOffset(PeHeaders.PEHeader.DelayImportTableDirectory, out var delayImportTableOffset))
+            if (!Headers.TryGetDirectoryOffset(Headers.PEHeader.ImportTableDirectory, out var currentDescriptorOffset))
             {
                 yield break;
             }
 
-            for (var descriptorIndex = 0;; descriptorIndex ++)
+            while (true)
             {
-                // Read the delay import descriptor
+                // Read the delay load import descriptor
 
-                var descriptorOffset = delayImportTableOffset + Unsafe.SizeOf<ImageDelayLoadDescriptor>() * descriptorIndex;
-
-                var descriptor = MemoryMarshal.Read<ImageDelayLoadDescriptor>(PeBytes.Slice(descriptorOffset).Span);
+                var descriptor = ReadStructure<ImageDelayLoadDescriptor>(currentDescriptorOffset);
 
                 if (descriptor.DllNameRva == 0)
                 {
                     break;
                 }
 
-                // Read the name of the delay import descriptor
+                // Read the name of the delay load import descriptor
 
                 var descriptorNameOffset = RvaToOffset(descriptor.DllNameRva);
 
                 var descriptorName = ReadNullTerminatedString(descriptorNameOffset);
 
-                // Read the functions imported under the delay import descriptor
+                // Read the functions imported under the delay load import descriptor
 
-                var descriptorThunkOffset = RvaToOffset(descriptor.ImportNameTableRva);
+                var currentIatOffset = RvaToOffset(descriptor.ImportAddressTableRva);
 
-                var importAddressTableOffset = RvaToOffset(descriptor.ImportAddressTableRva);
+                var currentThunkOffset = RvaToOffset(descriptor.ImportNameTableRva);
 
-                var delayImportedFunctions = ReadDelayImportedFunctions(descriptorThunkOffset, importAddressTableOffset);
+                var functions = ReadDelayLoadImportedFunctions(currentIatOffset, currentThunkOffset);
 
-                yield return new ImportDescriptor(delayImportedFunctions, descriptorName);
+                yield return new ImportDescriptor(functions, descriptorName);
+
+                currentDescriptorOffset += Unsafe.SizeOf<ImageDelayLoadDescriptor>();
             }
         }
 
-        private IEnumerable<ImportedFunction> ReadDelayImportedFunctions(int descriptorThunkOffset, int importAddressTableOffset)
+        private IEnumerable<ImportedFunction> ReadDelayLoadImportedFunctions(int currentIatOffset, int currentThunkOffset)
         {
-            for (var functionIndex = 0;; functionIndex ++)
+            while (true)
             {
-                int functionOffset;
-
                 int functionDataOffset;
 
-                if (PeHeaders.PEHeader.Magic == PEMagic.PE32)
+                if (Headers.PEHeader.Magic == PEMagic.PE32)
                 {
-                    // Read the thunk data of the function
+                    // Read the thunk of the imported function
 
-                    var functionThunkDataOffset = descriptorThunkOffset + sizeof(int) * functionIndex;
+                    var functionThunk = ReadStructure<int>(currentThunkOffset);
 
-                    var functionThunkData = MemoryMarshal.Read<int>(PeBytes.Slice(functionThunkDataOffset).Span);
-
-                    if (functionThunkData == 0)
+                    if (functionThunk == 0)
                     {
                         break;
                     }
 
-                    // Calculate the offset of the function
+                    // Check if the imported function is imported via ordinal
 
-                    functionOffset = importAddressTableOffset + sizeof(int) * functionIndex;
-
-                    // Determine if the function is imported via ordinal
-
-                    if ((functionThunkData & int.MinValue) != 0)
+                    if ((functionThunk & int.MinValue) != 0)
                     {
-                        yield return new ImportedFunction(null, functionOffset, functionThunkData & ushort.MaxValue);
+                        yield return new ImportedFunction(currentIatOffset, null, functionThunk & ushort.MaxValue);
 
                         continue;
                     }
 
-                    functionDataOffset = RvaToOffset(functionThunkData);
+                    functionDataOffset = RvaToOffset(functionThunk);
                 }
 
                 else
                 {
-                    // Read the thunk data of the function
+                    // Read the thunk of the imported function
 
-                    var functionThunkDataOffset = descriptorThunkOffset + sizeof(long) * functionIndex;
+                    var functionThunk = ReadStructure<long>(currentThunkOffset);
 
-                    var functionThunkData = MemoryMarshal.Read<long>(PeBytes.Slice(functionThunkDataOffset).Span);
-
-                    if (functionThunkData == 0)
+                    if (functionThunk == 0)
                     {
                         break;
                     }
 
-                    // Calculate the offset of the function
+                    // Check if the imported function is imported via ordinal
 
-                    functionOffset = importAddressTableOffset + sizeof(long) * functionIndex;
-
-                    // Determine if the function is imported via ordinal
-
-                    if ((functionThunkData & long.MinValue) != 0)
+                    if ((functionThunk & long.MinValue) != 0)
                     {
-                        yield return new ImportedFunction(null, functionOffset, (int) functionThunkData & ushort.MaxValue);
+                        yield return new ImportedFunction(currentIatOffset, null, (int) functionThunk & ushort.MaxValue);
 
                         continue;
                     }
 
-                    functionDataOffset = RvaToOffset((int) functionThunkData);
+                    functionDataOffset = RvaToOffset((int) functionThunk);
                 }
 
-                // Read the name of the function
+                // Read the name of the imported function
 
-                var functionName = ReadNullTerminatedString(functionDataOffset + sizeof(short));
+                var functionNameOffset = functionDataOffset + sizeof(short);
 
-                // Read the ordinal of the function
+                var functionName = ReadNullTerminatedString(functionNameOffset);
 
-                var functionOrdinal = MemoryMarshal.Read<short>(PeBytes.Slice(functionDataOffset).Span);
+                // Read the ordinal of the imported function
 
-                yield return new ImportedFunction(functionName, functionOffset, functionOrdinal);
+                var functionOrdinal = ReadStructure<short>(functionDataOffset);
+
+                yield return new ImportedFunction(currentIatOffset, functionName, functionOrdinal);
+
+                currentIatOffset += Headers.PEHeader.Magic == PEMagic.PE32 ? sizeof(int) : sizeof(long);
+
+                currentThunkOffset += Headers.PEHeader.Magic == PEMagic.PE32 ? sizeof(int) : sizeof(long);
             }
         }
     }

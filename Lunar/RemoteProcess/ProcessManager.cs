@@ -1,142 +1,159 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Lunar.Assembler;
+using Lunar.Assembler.Structures;
 using Lunar.Extensions;
 using Lunar.Native.Enumerations;
 using Lunar.Native.PInvoke;
-using Lunar.PortableExecutable.Structures;
 using Lunar.RemoteProcess.Structures;
-using Lunar.RoutineCall;
-using Lunar.RoutineCall.Structures;
-using Lunar.Shared;
 
 namespace Lunar.RemoteProcess
 {
     internal sealed class ProcessManager
     {
-        internal List<Module> Modules { get; }
-
         internal Process Process { get; }
+
+        private readonly List<Module> _modules;
 
         private readonly PebAccessor _pebAccessor;
 
         internal ProcessManager(Process process)
         {
+            _modules = new List<Module>();
+
             _pebAccessor = new PebAccessor(process);
 
-            Modules = _pebAccessor.ReadModuleEntries().ToList();
-
             Process = process;
+
+            Refresh();
         }
 
-        internal TStructure CallRoutine<TStructure>(CallingConvention callingConvention, IntPtr functionAddress, params long[] parameters) where TStructure : unmanaged
+        internal void CallRoutine(IntPtr functionAddress, params dynamic[] parameters)
         {
-            // Write the shellcode used to perform the function call into a buffer
+            var routineDescriptor = new RoutineDescriptor(functionAddress, parameters, IntPtr.Zero);
 
-            var returnBuffer = Process.AllocateMemory(Unsafe.SizeOf<TStructure>(), ProtectionType.ReadWrite);
+            CallRoutine(routineDescriptor);
+        }
 
-            var routineDescriptor = new RoutineDescriptor(Process.GetArchitecture(), callingConvention, functionAddress, parameters, returnBuffer);
+        internal TStructure CallRoutine<TStructure>(IntPtr functionAddress, params dynamic[] parameters) where TStructure : unmanaged
+        {
+            var returnBuffer = Process.AllocateBuffer(Unsafe.SizeOf<TStructure>());
 
-            var shellcode = Assembler.AssembleRoutine(routineDescriptor);
-
-            var shellcodeBuffer = Process.AllocateMemory(shellcode.Length, ProtectionType.ExecuteReadWrite);
-
-            Process.WriteMemory(shellcodeBuffer, shellcode);
-
-            // Create a thread to execute the shellcode
-
-            var ntStatus = Ntdll.NtCreateThreadEx(out var threadHandle, AccessMask.SpecificRightsAll | AccessMask.StandardRightsAll, IntPtr.Zero, Process.SafeHandle, shellcodeBuffer, IntPtr.Zero, ThreadCreationFlags.HideFromDebugger | ThreadCreationFlags.SkipThreadAttach, IntPtr.Zero, 0, 0, IntPtr.Zero);
-
-            if (ntStatus != NtStatus.Success)
-            {
-                throw ExceptionBuilder.BuildWin32Exception("NtCreateThreadEx", ntStatus);
-            }
-
-            if (Kernel32.WaitForSingleObject(threadHandle, int.MaxValue) == -1)
-            {
-                throw ExceptionBuilder.BuildWin32Exception("WaitForSingleObject");
-            }
-
-            threadHandle.Dispose();
-
-            Process.FreeMemory(shellcodeBuffer);
+            var routineDescriptor = new RoutineDescriptor(functionAddress, parameters, returnBuffer);
 
             try
             {
+                CallRoutine(routineDescriptor);
+
                 return Process.ReadStructure<TStructure>(returnBuffer);
             }
 
             finally
             {
-                Process.FreeMemory(returnBuffer);
+                Process.FreeBuffer(returnBuffer);
             }
         }
 
         internal IntPtr GetFunctionAddress(string moduleName, string functionName)
         {
-            // Find the exported function by name
+            var containingModule = _modules.First(module => module.Name.Equals(ResolveModuleName(moduleName), StringComparison.OrdinalIgnoreCase));
 
-            var functionModule = Modules.First(module => module.Name.Equals(moduleName, StringComparison.OrdinalIgnoreCase));
+            var exportedFunction = containingModule.ExportedFunctions.Value.First(function => function.Name.Equals(functionName));
 
-            var exportedFunction = functionModule.PeImage.Value.ExportDirectory.Value.ExportedFunctions.First(function => function.Name.Equals(functionName, StringComparison.OrdinalIgnoreCase));
+            // Check if the exported function is forwarded
 
-            return GetFunctionAddress(functionModule, exportedFunction);
+            if (exportedFunction.ForwarderString is null)
+            {
+                return containingModule.Address + exportedFunction.Rva;
+            }
+
+            // Resolve the forwarded function
+
+            var forwardedData = exportedFunction.ForwarderString.Split(".");
+
+            var forwardedModuleName = $"{forwardedData[0]}.dll";
+
+            var forwardedFunctionName = forwardedData[1];
+
+            // Handle circular forwarding to avoid infinite recursion
+
+            if (moduleName.Equals(forwardedModuleName, StringComparison.OrdinalIgnoreCase) && functionName.Equals(forwardedFunctionName, StringComparison.OrdinalIgnoreCase))
+            {
+                return containingModule.Address + exportedFunction.Rva;
+            }
+
+            return GetFunctionAddress(forwardedModuleName, forwardedFunctionName);
         }
 
         internal IntPtr GetFunctionAddress(string moduleName, int functionOrdinal)
         {
-            // Find the exported function by ordinal
+            var containingModule = _modules.First(module => module.Name.Equals(ResolveModuleName(moduleName), StringComparison.OrdinalIgnoreCase));
 
-            var functionModule = Modules.First(module => module.Name.Equals(moduleName, StringComparison.OrdinalIgnoreCase));
+            var exportedFunction = containingModule.ExportedFunctions.Value.First(function => function.Ordinal == functionOrdinal);
 
-            var exportedFunction = functionModule.PeImage.Value.ExportDirectory.Value.ExportedFunctions.First(function => function.Ordinal == functionOrdinal);
-
-            return GetFunctionAddress(functionModule, exportedFunction);
+            return GetFunctionAddress(moduleName, exportedFunction.Name);
         }
 
-        internal string ResolveDllName(string dllName)
+        internal IntPtr GetModuleAddress(string moduleName)
         {
-            if (dllName.StartsWith("api-ms") || dllName.StartsWith("ext-ms"))
-            {
-                return _pebAccessor.ApiSetMappings.Value[dllName];
-            }
-
-            return dllName;
+            return _modules.First(module => module.Name.Equals(ResolveModuleName(moduleName), StringComparison.OrdinalIgnoreCase)).Address;
         }
 
-        internal void RefreshModules()
+        internal void Refresh()
         {
-            Modules.Clear();
+            _modules.Clear();
 
-            Modules.AddRange(_pebAccessor.ReadModuleEntries());
+            _modules.AddRange(_pebAccessor.ReadModules());
         }
 
-        private IntPtr GetFunctionAddress(Module module, ExportedFunction exportedFunction)
+        internal string ResolveModuleName(string moduleName)
         {
-            // Determine if the function is forwarded to another function
+            return moduleName.StartsWith("api-ms") ? _pebAccessor.ResolveApiSetName(moduleName) : moduleName;
+        }
 
-            if (exportedFunction.ForwarderString is null)
+        private void CallRoutine(RoutineDescriptor routineDescriptor)
+        {
+            // Write the shellcode used to perform the function call into a buffer
+
+            var shellcodeBytes = Process.GetArchitecture() == Architecture.X86 ? RoutineAssembler.AssembleRoutine32(routineDescriptor) : RoutineAssembler.AssembleRoutine64(routineDescriptor);
+
+            var shellcodeBuffer = Process.AllocateBuffer(shellcodeBytes.Length, true);
+
+            try
             {
-                return module.BaseAddress + exportedFunction.Offset;
+                Process.WriteBuffer(shellcodeBuffer, shellcodeBytes);
+
+                // Create a thread to execute the shellcode
+
+                const AccessMask accessMask = AccessMask.SpecificRightsAll | AccessMask.StandardRightsAll;
+
+                const ThreadCreationFlags creationFlags = ThreadCreationFlags.HideFromDebugger | ThreadCreationFlags.SkipThreadAttach;
+
+                var ntStatus = Ntdll.NtCreateThreadEx(out var threadHandle, accessMask, IntPtr.Zero, Process.SafeHandle, shellcodeBuffer, IntPtr.Zero, creationFlags, IntPtr.Zero, 0, 0, IntPtr.Zero);
+
+                using (threadHandle)
+                {
+                    if (ntStatus != NtStatus.Success)
+                    {
+                        throw new Win32Exception(Ntdll.RtlNtStatusToDosError(ntStatus));
+                    }
+
+                    if (Kernel32.WaitForSingleObject(threadHandle, int.MaxValue) == -1)
+                    {
+                        throw new Win32Exception();
+                    }
+                }
             }
 
-            // Get the module and function that the function is forwarded to
-
-            var forwardedData = exportedFunction.ForwarderString.Split(".");
-
-            if (forwardedData[0].StartsWith("api-ms") || forwardedData[0].StartsWith("ext-ms"))
+            finally
             {
-                return module.BaseAddress + exportedFunction.Offset;
+                Process.FreeBuffer(shellcodeBuffer);
             }
-
-            var forwardedModule = ResolveDllName($"{forwardedData[0]}.dll");
-
-            var forwardedFunction = forwardedData[1];
-
-            return GetFunctionAddress(forwardedModule, forwardedFunction);
         }
     }
 }
