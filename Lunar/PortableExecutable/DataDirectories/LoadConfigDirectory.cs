@@ -11,7 +11,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
         internal SehTable? SehTable { get; }
 
-        internal LoadConfigDirectory(Memory<byte> imageBytes, PEHeaders headers) : base(imageBytes, headers)
+        internal LoadConfigDirectory(Memory<byte> imageBlock, PEHeaders headers) : base(imageBlock, headers)
         {
             SecurityCookie = ReadSecurityCookie();
 

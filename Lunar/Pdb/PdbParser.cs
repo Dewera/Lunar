@@ -34,9 +34,7 @@ namespace Lunar.Pdb
 
         private static async Task<string> DownloadPdb(string dllFilePath)
         {
-            var dllBuffer = File.ReadAllBytes(dllFilePath);
-
-            var peImage = new PeImage(dllBuffer);
+            var peImage = new PeImage(File.ReadAllBytes(dllFilePath));
 
             // Create a directory on disk to cache the PDB
 
@@ -117,28 +115,28 @@ namespace Lunar.Pdb
                     throw new Win32Exception();
                 }
 
-                var symbolInformationBufferSize = (Unsafe.SizeOf<SymbolInfo>() + Constants.MaxSymbolName * sizeof(char) + sizeof(long) - 1) / sizeof(long);
+                var symbolInformationBlockSize = (Unsafe.SizeOf<SymbolInfo>() + Constants.MaxSymbolName * sizeof(char) + sizeof(long) - 1) / sizeof(long);
 
                 int GetSymbolRva(string symbolName)
                 {
-                    // Initialise a buffer to receive the symbol information
+                    // Initialise a block to receive the symbol information
 
-                    Span<byte> symbolInformationBuffer = stackalloc byte[symbolInformationBufferSize];
+                    Span<byte> symbolInformationBlock = stackalloc byte[symbolInformationBlockSize];
 
                     var symbolInformation = new SymbolInfo(Constants.MaxSymbolName);
 
-                    MemoryMarshal.Write(symbolInformationBuffer, ref symbolInformation);
+                    MemoryMarshal.Write(symbolInformationBlock, ref symbolInformation);
 
                     // Retrieve the symbol information
 
-                    if (!Dbghelp.SymFromName(currentProcessHandle, symbolName, out symbolInformationBuffer[0]))
+                    if (!Dbghelp.SymFromName(currentProcessHandle, symbolName, out symbolInformationBlock[0]))
                     {
                         throw new Win32Exception();
                     }
 
                     // Calculate the relative virtual address of the symbol
 
-                    symbolInformation = MemoryMarshal.Read<SymbolInfo>(symbolInformationBuffer);
+                    symbolInformation = MemoryMarshal.Read<SymbolInfo>(symbolInformationBlock);
 
                     return (int) (symbolInformation.Address - pseudoDllBaseAddress);
                 }

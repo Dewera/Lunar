@@ -9,11 +9,11 @@ namespace Lunar.PortableExecutable
     {
         protected PEHeaders Headers { get; }
 
-        private readonly Memory<byte> _imageBytes;
+        private readonly Memory<byte> _imageBlock;
 
-        protected DataDirectory(Memory<byte> imageBytes, PEHeaders headers)
+        protected DataDirectory(Memory<byte> imageBlock, PEHeaders headers)
         {
-            _imageBytes = imageBytes;
+            _imageBlock = imageBlock;
 
             Headers = headers;
         }
@@ -22,17 +22,17 @@ namespace Lunar.PortableExecutable
         {
             var stringLength = 0;
 
-            while (_imageBytes.Span[offset + stringLength] != byte.MinValue)
+            while (_imageBlock.Span[offset + stringLength] != byte.MinValue)
             {
                 stringLength += 1;
             }
 
-            return Encoding.UTF8.GetString(_imageBytes.Slice(offset, stringLength).Span);
+            return Encoding.UTF8.GetString(_imageBlock.Slice(offset, stringLength).Span);
         }
 
         protected T ReadStructure<T>(int offset) where T : unmanaged
         {
-            return MemoryMarshal.Read<T>(_imageBytes.Slice(offset).Span);
+            return MemoryMarshal.Read<T>(_imageBlock.Slice(offset).Span);
         }
 
         protected int RvaToOffset(int rva)

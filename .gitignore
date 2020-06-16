@@ -347,4 +347,6 @@ MigrationBackup/
 # Rider
 .idea/
 
+# Test Library Binaries
+
 !/Lunar.Tests/TestLibraries/*

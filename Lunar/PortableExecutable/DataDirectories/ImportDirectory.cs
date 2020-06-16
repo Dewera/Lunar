@@ -11,7 +11,7 @@ namespace Lunar.PortableExecutable.DataDirectories
     {
         internal IEnumerable<ImportDescriptor> ImportDescriptors { get; }
 
-        internal ImportDirectory(Memory<byte> imageBytes, PEHeaders headers) : base(imageBytes, headers)
+        internal ImportDirectory(Memory<byte> imageBlock, PEHeaders headers) : base(imageBlock, headers)
         {
             ImportDescriptors = ReadImportDescriptors();
         }

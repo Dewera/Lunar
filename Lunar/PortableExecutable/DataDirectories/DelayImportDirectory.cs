@@ -11,7 +11,7 @@ namespace Lunar.PortableExecutable.DataDirectories
     {
         internal IEnumerable<ImportDescriptor> DelayLoadImportDescriptors { get; }
 
-        internal DelayImportDirectory(Memory<byte> imageBytes, PEHeaders headers) : base(imageBytes, headers)
+        internal DelayImportDirectory(Memory<byte> imageBlock, PEHeaders headers) : base(imageBlock, headers)
         {
             DelayLoadImportDescriptors = ReadDelayLoadImportDescriptors();
         }

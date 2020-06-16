@@ -3,7 +3,7 @@
     <PropertyGroup>
         <TargetFramework>netcoreapp3.1</TargetFramework>
         <Nullable>enable</Nullable>
-        <PackageVersion>1.3.0</PackageVersion>
+        <PackageVersion>1.3.1</PackageVersion>
         <Description>A lightweight native DLL mapping library that supports mapping directly from memory</Description>
         <RepositoryType>git</RepositoryType>
         <Authors>Dewera</Authors>

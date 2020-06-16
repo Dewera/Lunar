@@ -30,7 +30,7 @@ namespace Lunar
         /// </summary>
         public IntPtr DllBaseAddress { get; private set; }
 
-        private readonly Memory<byte> _dllBytes;
+        private readonly Memory<byte> _dllBlock;
 
         private readonly MappingFlags _mappingFlags;
 
@@ -43,27 +43,27 @@ namespace Lunar
         /// <summary>
         /// Provides the functionality to map a DLL from memory into a process
         /// </summary>
-        public LibraryMapper(Process process, Memory<byte> dllBytes, MappingFlags mappingFlags = MappingFlags.None)
+        public LibraryMapper(Process process, Memory<byte> dllBlock, MappingFlags mappingFlags = MappingFlags.None)
         {
             if (process is null || process.HasExited)
             {
                 throw new ArgumentException("The provided process is not currently running");
             }
 
-            if (dllBytes.IsEmpty)
+            if (dllBlock.IsEmpty)
             {
                 throw new ArgumentException("The provided DLL buffer was empty");
             }
 
             EnterDebugMode();
 
-            _dllBytes = dllBytes.ToArray();
+            _dllBlock = dllBlock.ToArray();
 
             _mappingFlags = mappingFlags;
 
             _pdbParser = new PdbParser(ResolveNtdllFilePath(process), "LdrpInvertedFunctionTable");
 
-            _peImage = new PeImage(dllBytes);
+            _peImage = new PeImage(dllBlock);
 
             _processManager = new ProcessManager(process);
         }
@@ -85,13 +85,13 @@ namespace Lunar
 
             EnterDebugMode();
 
-            _dllBytes = File.ReadAllBytes(dllFilePath);
+            _dllBlock = File.ReadAllBytes(dllFilePath);
 
             _mappingFlags = mappingFlags;
 
             _pdbParser = new PdbParser(ResolveNtdllFilePath(process), "LdrpInvertedFunctionTable");
 
-            _peImage = new PeImage(_dllBytes.ToArray());
+            _peImage = new PeImage(_dllBlock.ToArray());
 
             _processManager = new ProcessManager(process);
         }
@@ -172,9 +172,11 @@ namespace Lunar
                 {
                     // Write the address of the function into the import address table
 
-                    var functionAddress = function.Name is null ? _processManager.GetFunctionAddress(importDescriptor.Name, function.Ordinal) : _processManager.GetFunctionAddress(importDescriptor.Name, function.Name);
+                    var functionAddress = function.Name is null
+                                              ? _processManager.GetFunctionAddress(importDescriptor.Name, function.Ordinal)
+                                              : _processManager.GetFunctionAddress(importDescriptor.Name, function.Name);
 
-                    MemoryMarshal.Write(_dllBytes.Slice(function.IatOffset).Span, ref functionAddress);
+                    MemoryMarshal.Write(_dllBlock.Slice(function.IatOffset).Span, ref functionAddress);
                 }
             });
         }
@@ -240,22 +242,22 @@ namespace Lunar
 
             // Generate a randomised security cookie
 
-            Span<byte> securityCookieBytes = stackalloc byte[_processManager.Process.GetArchitecture() == Architecture.X86 ? 4 : 6];
+            Span<byte> securityCookieBlock = stackalloc byte[_processManager.Process.GetArchitecture() == Architecture.X86 ? 4 : 6];
 
-            new Random().NextBytes(securityCookieBytes);
+            new Random().NextBytes(securityCookieBlock);
 
             // Ensure the default security cookie was not generated
 
-            if (securityCookieBytes.SequenceEqual(stackalloc byte[] {0xBB, 0x40, 0xE6, 0x4E}) || securityCookieBytes.SequenceEqual(stackalloc byte[] {0x2B, 0x99, 0x2D, 0xDF, 0xA2, 0x32}))
+            if (securityCookieBlock.SequenceEqual(stackalloc byte[] {0xBB, 0x40, 0xE6, 0x4E}) || securityCookieBlock.SequenceEqual(stackalloc byte[] {0x2B, 0x99, 0x2D, 0xDF, 0xA2, 0x32}))
             {
-                securityCookieBytes[^1] += 1;
+                securityCookieBlock[^1] += 1;
             }
 
             // Initialise the security cookie
 
             var securityCookieAddress = DllBaseAddress + _peImage.LoadConfigDirectory.SecurityCookie.Rva;
 
-            _processManager.Process.WriteBuffer(securityCookieAddress, securityCookieBytes);
+            _processManager.Process.WriteArray(securityCookieAddress, securityCookieBlock);
         }
 
         private void InsertExceptionHandlers()
@@ -282,7 +284,7 @@ namespace Lunar
 
                 var entryArrayAddress = functionTableAddress + Unsafe.SizeOf<RtlInvertedFunctionTable>();
 
-                var entryArray = _processManager.Process.ReadBuffer<RtlInvertedFunctionTableEntry32>(entryArrayAddress, Constants.InvertedFunctionTableEntryArraySize);
+                var entryArray = _processManager.Process.ReadArray<RtlInvertedFunctionTableEntry32>(entryArrayAddress, Constants.InvertedFunctionTableEntryArraySize);
 
                 // Determine where the new inverted function table entry should be inserted
 
@@ -310,7 +312,9 @@ namespace Lunar
 
                 // Read the shared user data
 
-                var sharedUserData = _processManager.Process.ReadStructure<KUserSharedData>(new IntPtr(Constants.SharedUserDataFixedAddress));
+                var sharedUserDataAddress = new IntPtr(Constants.SharedUserDataFixedAddress);
+
+                var sharedUserData = _processManager.Process.ReadStructure<KUserSharedData>(sharedUserDataAddress);
 
                 // Encode the address of the exception directory using the system pointer encoding algorithm
 
@@ -328,7 +332,7 @@ namespace Lunar
 
                 // Update the existing inverted function table entry array
 
-                _processManager.Process.WriteBuffer(entryArrayAddress, entryArray, true);
+                _processManager.Process.WriteArray(entryArrayAddress, entryArray);
 
                 // Update the inverted function table
 
@@ -338,14 +342,14 @@ namespace Lunar
 
                 try
                 {
-                    _processManager.Process.WriteStructure(functionTableAddress, newFunctionTable, true);
+                    _processManager.Process.WriteStructure(functionTableAddress, newFunctionTable);
                 }
 
                 catch
                 {
                     // Restore the original inverted function table entry array
 
-                    _processManager.Process.WriteBuffer(entryArrayAddress, entryArray, true);
+                    _processManager.Process.WriteArray(entryArrayAddress, entryArray);
                 }
             }
 
@@ -355,7 +359,7 @@ namespace Lunar
 
                 var entryArrayAddress = functionTableAddress + Unsafe.SizeOf<RtlInvertedFunctionTable>();
 
-                var entryArray = _processManager.Process.ReadBuffer<RtlInvertedFunctionTableEntry64>(entryArrayAddress, Constants.InvertedFunctionTableEntryArraySize);
+                var entryArray = _processManager.Process.ReadArray<RtlInvertedFunctionTableEntry64>(entryArrayAddress, Constants.InvertedFunctionTableEntryArraySize);
 
                 // Determine where the new inverted function table entry should be inserted
 
@@ -391,7 +395,7 @@ namespace Lunar
 
                 // Update the existing inverted function table entry array
 
-                _processManager.Process.WriteBuffer(entryArrayAddress, entryArray, true);
+                _processManager.Process.WriteArray(entryArrayAddress, entryArray);
 
                 // Update the inverted function table
 
@@ -401,14 +405,14 @@ namespace Lunar
 
                 try
                 {
-                    _processManager.Process.WriteStructure(functionTableAddress, newFunctionTable, true);
+                    _processManager.Process.WriteStructure(functionTableAddress, newFunctionTable);
                 }
 
                 catch
                 {
                     // Restore the original inverted function table entry array
 
-                    _processManager.Process.WriteBuffer(entryArrayAddress, entryArray, true);
+                    _processManager.Process.WriteArray(entryArrayAddress, entryArray);
                 }
             }
         }
@@ -423,13 +427,13 @@ namespace Lunar
 
                 var resolvedDependencyName = _processManager.ResolveModuleName(dependency.Name);
 
-                var dependencyNameBytes = Encoding.Unicode.GetBytes(resolvedDependencyName);
+                var dependencyNameBlock = Encoding.Unicode.GetBytes(resolvedDependencyName);
 
-                var dependencyNameBuffer = _processManager.Process.AllocateBuffer(dependencyNameBytes.Length);
+                var dependencyNameBuffer = _processManager.Process.AllocateBuffer(dependencyNameBlock.Length);
 
                 try
                 {
-                    _processManager.Process.WriteBuffer(dependencyNameBuffer, new Span<byte>(dependencyNameBytes));
+                    _processManager.Process.WriteArray(dependencyNameBuffer, new Span<byte>(dependencyNameBlock));
 
                     // Load the dependency using the Windows loader
 
@@ -458,11 +462,11 @@ namespace Lunar
             {
                 // Map the headers
 
-                var headerBytes = _dllBytes.Slice(0, _peImage.Headers.PEHeader.SizeOfHeaders);
+                var headerBlock = _dllBlock.Slice(0, _peImage.Headers.PEHeader.SizeOfHeaders);
 
-                _processManager.Process.WriteBuffer(DllBaseAddress, headerBytes.Span);
+                _processManager.Process.WriteArray(DllBaseAddress, headerBlock.Span);
 
-                _processManager.Process.ProtectBuffer(DllBaseAddress, headerBytes.Length, ProtectionType.ReadOnly);
+                _processManager.Process.ProtectBuffer(DllBaseAddress, _peImage.Headers.PEHeader.SizeOfHeaders, ProtectionType.ReadOnly);
             }
 
             foreach (var section in _peImage.Headers.SectionHeaders.Where(section => !section.SectionCharacteristics.HasFlag(SectionCharacteristics.MemDiscardable)))
@@ -476,9 +480,9 @@ namespace Lunar
 
                 var sectionAddress = DllBaseAddress + section.VirtualAddress;
 
-                var sectionBytes = _dllBytes.Slice(section.PointerToRawData, section.SizeOfRawData);
+                var sectionBlock = _dllBlock.Slice(section.PointerToRawData, section.SizeOfRawData);
 
-                _processManager.Process.WriteBuffer(sectionAddress, sectionBytes.Span);
+                _processManager.Process.WriteArray(sectionAddress, sectionBlock.Span);
 
                 // Determine the protection to apply to the section
 
@@ -512,7 +516,7 @@ namespace Lunar
                     sectionProtection |= ProtectionType.NoCache;
                 }
 
-                _processManager.Process.ProtectBuffer(sectionAddress, sectionBytes.Length, sectionProtection);
+                _processManager.Process.ProtectBuffer(sectionAddress, section.SizeOfRawData, sectionProtection);
             }
         }
 
@@ -530,9 +534,9 @@ namespace Lunar
                     {
                         // Perform the relocation
 
-                        var relocationValue = MemoryMarshal.Read<int>(_dllBytes.Slice(relocation.Offset).Span) + (int) delta;
+                        var relocationValue = MemoryMarshal.Read<int>(_dllBlock.Slice(relocation.Offset).Span) + (int) delta;
 
-                        MemoryMarshal.Write(_dllBytes.Slice(relocation.Offset).Span, ref relocationValue);
+                        MemoryMarshal.Write(_dllBlock.Slice(relocation.Offset).Span, ref relocationValue);
 
                         break;
                     }
@@ -541,9 +545,9 @@ namespace Lunar
                     {
                         // Perform the relocation
 
-                        var relocationValue = MemoryMarshal.Read<long>(_dllBytes.Slice(relocation.Offset).Span) + delta;
+                        var relocationValue = MemoryMarshal.Read<long>(_dllBlock.Slice(relocation.Offset).Span) + delta;
 
-                        MemoryMarshal.Write(_dllBytes.Slice(relocation.Offset).Span, ref relocationValue);
+                        MemoryMarshal.Write(_dllBlock.Slice(relocation.Offset).Span, ref relocationValue);
 
                         break;
                     }
@@ -570,7 +574,7 @@ namespace Lunar
 
                 var entryArrayAddress = functionTableAddress + Unsafe.SizeOf<RtlInvertedFunctionTable>();
 
-                var entryArray = _processManager.Process.ReadBuffer<RtlInvertedFunctionTableEntry32>(entryArrayAddress, Constants.InvertedFunctionTableEntryArraySize);
+                var entryArray = _processManager.Process.ReadArray<RtlInvertedFunctionTableEntry32>(entryArrayAddress, Constants.InvertedFunctionTableEntryArraySize);
 
                 // Determine where the function table entry should be removed
 
@@ -603,7 +607,7 @@ namespace Lunar
 
                 // Update the existing inverted function table entry array
 
-                _processManager.Process.WriteBuffer(entryArrayAddress, entryArray, true);
+                _processManager.Process.WriteArray(entryArrayAddress, entryArray);
 
                 // Update the inverted function table
 
@@ -611,14 +615,14 @@ namespace Lunar
 
                 try
                 {
-                    _processManager.Process.WriteStructure(functionTableAddress, newFunctionTable, true);
+                    _processManager.Process.WriteStructure(functionTableAddress, newFunctionTable);
                 }
 
                 catch
                 {
                     // Restore the original inverted function table entry array
 
-                    _processManager.Process.WriteBuffer(entryArrayAddress, entryArray, true);
+                    _processManager.Process.WriteArray(entryArrayAddress, entryArray);
                 }
             }
 
@@ -628,7 +632,7 @@ namespace Lunar
 
                 var entryArrayAddress = functionTableAddress + Unsafe.SizeOf<RtlInvertedFunctionTable>();
 
-                var entryArray = _processManager.Process.ReadBuffer<RtlInvertedFunctionTableEntry64>(entryArrayAddress, Constants.InvertedFunctionTableEntryArraySize);
+                var entryArray = _processManager.Process.ReadArray<RtlInvertedFunctionTableEntry64>(entryArrayAddress, Constants.InvertedFunctionTableEntryArraySize);
 
                 // Determine where the function table entry should be removed
 
@@ -661,7 +665,7 @@ namespace Lunar
 
                 // Update the existing inverted function table entry array
 
-                _processManager.Process.WriteBuffer(entryArrayAddress, entryArray, true);
+                _processManager.Process.WriteArray(entryArrayAddress, entryArray);
 
                 // Update the inverted function table
 
@@ -669,14 +673,14 @@ namespace Lunar
 
                 try
                 {
-                    _processManager.Process.WriteStructure(functionTableAddress, newFunctionTable, true);
+                    _processManager.Process.WriteStructure(functionTableAddress, newFunctionTable);
                 }
 
                 catch
                 {
                     // Restore the original inverted function table entry array
 
-                    _processManager.Process.WriteBuffer(entryArrayAddress, entryArray, true);
+                    _processManager.Process.WriteArray(entryArrayAddress, entryArray);
                 }
             }
         }

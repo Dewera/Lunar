@@ -10,7 +10,7 @@ namespace Lunar.PortableExecutable.DataDirectories
     {
         internal IEnumerable<ExportedFunction> ExportedFunctions { get; }
 
-        internal ExportDirectory(Memory<byte> imageBytes, PEHeaders headers) : base(imageBytes, headers)
+        internal ExportDirectory(Memory<byte> imageBlock, PEHeaders headers) : base(imageBlock, headers)
         {
             ExportedFunctions = ReadExportedFunctions();
         }

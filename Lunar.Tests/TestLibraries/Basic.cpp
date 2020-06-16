@@ -1,6 +1,6 @@
 #include <Windows.h>
 
-int __stdcall DllMain(void* moduleHandle, unsigned long reason, void* reserved)
+bool __stdcall DllMain(void* moduleHandle, unsigned long reason, void* reserved)
 {
     switch (reason)
     {
@@ -11,6 +11,6 @@ int __stdcall DllMain(void* moduleHandle, unsigned long reason, void* reserved)
         }
     }
 
-    return 1;
+    return true;
 }
 

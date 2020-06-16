@@ -120,13 +120,13 @@ namespace Lunar.RemoteProcess
         {
             // Write the shellcode used to perform the function call into a buffer
 
-            var shellcodeBytes = Process.GetArchitecture() == Architecture.X86 ? RoutineAssembler.AssembleRoutine32(routineDescriptor) : RoutineAssembler.AssembleRoutine64(routineDescriptor);
+            var shellcodeBlock = Process.GetArchitecture() == Architecture.X86 ? RoutineAssembler.AssembleRoutine32(routineDescriptor) : RoutineAssembler.AssembleRoutine64(routineDescriptor);
 
-            var shellcodeBuffer = Process.AllocateBuffer(shellcodeBytes.Length, true);
+            var shellcodeBuffer = Process.AllocateBuffer(shellcodeBlock.Length, true);
 
             try
             {
-                Process.WriteBuffer(shellcodeBuffer, shellcodeBytes);
+                Process.WriteArray(shellcodeBuffer, shellcodeBlock);
 
                 // Create a thread to execute the shellcode
 

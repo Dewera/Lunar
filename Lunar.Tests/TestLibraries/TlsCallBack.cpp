@@ -36,7 +36,7 @@ void __stdcall TlsCallBack(void* moduleHandle, unsigned long reason, void* reser
     #pragma data_seg()
 #endif
 
-int __stdcall DllMain(void* moduleHandle, unsigned long reason, void* reserved)
+bool __stdcall DllMain(void* moduleHandle, unsigned long reason, void* reserved)
 {
     switch (reason)
     {
@@ -60,6 +60,6 @@ int __stdcall DllMain(void* moduleHandle, unsigned long reason, void* reserved)
         }
     }
 
-    return 1;
+    return true;
 }
 

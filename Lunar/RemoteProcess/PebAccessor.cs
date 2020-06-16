@@ -1,13 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using Lunar.Extensions;
 using Lunar.Native.Enumerations;
-using Lunar.Native.PInvoke;
 using Lunar.Native.Structures;
 using Lunar.RemoteProcess.Structures;
 
@@ -38,21 +36,23 @@ namespace Lunar.RemoteProcess
 
                 var currentEntryAddress = new IntPtr(loaderData.InMemoryOrderModuleList.Flink);
 
-                var inMemoryOrderLinksOffset = Marshal.OffsetOf<LdrDataTableEntry32>("InMemoryOrderLinks").ToInt32();
+                var inMemoryOrderLinksOffset = Marshal.OffsetOf<LdrDataTableEntry32>("InMemoryOrderLinks");
 
                 while (true)
                 {
                     // Read the loader entry
 
-                    var entry = _process.ReadStructure<LdrDataTableEntry32>(currentEntryAddress - inMemoryOrderLinksOffset);
+                    var entryAddress = currentEntryAddress - inMemoryOrderLinksOffset.ToInt32();
+
+                    var entry = _process.ReadStructure<LdrDataTableEntry32>(entryAddress);
 
                     // Read the file path of the entry
 
                     var entryFilePathAddress = new IntPtr(entry.FullDllName.Buffer);
 
-                    var entryFilePathBytes = _process.ReadBuffer<byte>(entryFilePathAddress, entry.FullDllName.Length);
+                    var entryFilePathBlock = _process.ReadArray<byte>(entryFilePathAddress, entry.FullDllName.Length);
 
-                    var entryFilePath = Encoding.Unicode.GetString(entryFilePathBytes);
+                    var entryFilePath = Encoding.Unicode.GetString(entryFilePathBlock);
 
                     if (Environment.Is64BitOperatingSystem)
                     {
@@ -65,9 +65,9 @@ namespace Lunar.RemoteProcess
 
                     var entryNameAddress = new IntPtr(entry.BaseDllName.Buffer);
 
-                    var entryNameBytes = _process.ReadBuffer<byte>(entryNameAddress, entry.BaseDllName.Length);
+                    var entryNameBlock = _process.ReadArray<byte>(entryNameAddress, entry.BaseDllName.Length);
 
-                    var entryName = Encoding.Unicode.GetString(entryNameBytes);
+                    var entryName = Encoding.Unicode.GetString(entryNameBlock);
 
                     yield return new Module(new IntPtr(entry.DllBase), entryFilePath, entryName);
 
@@ -90,29 +90,31 @@ namespace Lunar.RemoteProcess
 
                 var currentEntryAddress = new IntPtr(loaderData.InMemoryOrderModuleList.Flink);
 
-                var inMemoryOrderLinksOffset = Marshal.OffsetOf<LdrDataTableEntry64>("InMemoryOrderLinks").ToInt32();
+                var inMemoryOrderLinksOffset = Marshal.OffsetOf<LdrDataTableEntry64>("InMemoryOrderLinks");
 
                 while (true)
                 {
                     // Read the loader entry
 
-                    var entry = _process.ReadStructure<LdrDataTableEntry64>(currentEntryAddress - inMemoryOrderLinksOffset);
+                    var entryAddress = currentEntryAddress - inMemoryOrderLinksOffset.ToInt32();
+
+                    var entry = _process.ReadStructure<LdrDataTableEntry64>(entryAddress);
 
                     // Read the file path of the entry
 
                     var entryFilePathAddress = new IntPtr(entry.FullDllName.Buffer);
 
-                    var entryFilePathBytes = _process.ReadBuffer<byte>(entryFilePathAddress, entry.FullDllName.Length);
+                    var entryFilePathBlock = _process.ReadArray<byte>(entryFilePathAddress, entry.FullDllName.Length);
 
-                    var entryFilePath = Encoding.Unicode.GetString(entryFilePathBytes);
+                    var entryFilePath = Encoding.Unicode.GetString(entryFilePathBlock);
 
                     // Read the name of the loader entry
 
                     var entryNameAddress = new IntPtr(entry.BaseDllName.Buffer);
 
-                    var entryNameBytes = _process.ReadBuffer<byte>(entryNameAddress, entry.BaseDllName.Length);
+                    var entryNameBlock = _process.ReadArray<byte>(entryNameAddress, entry.BaseDllName.Length);
 
-                    var entryName = Encoding.Unicode.GetString(entryNameBytes);
+                    var entryName = Encoding.Unicode.GetString(entryNameBlock);
 
                     yield return new Module(new IntPtr(entry.DllBase), entryFilePath, entryName);
 
@@ -162,7 +164,7 @@ namespace Lunar.RemoteProcess
 
                 // Read the API set hash entry
 
-                var hashEntryAddress = _pebData.ApiSetMapAddress + @namespace.HashOffset + Unsafe.SizeOf<ApiSetHashEntry>() * middleNamespaceEntryIndex;
+                var hashEntryAddress = _pebData.ApiSetMapAddress + @namespace.HashOffset + middleNamespaceEntryIndex * Unsafe.SizeOf<ApiSetHashEntry>();
 
                 var hashEntry = _process.ReadStructure<ApiSetHashEntry>(hashEntryAddress);
 
@@ -170,7 +172,7 @@ namespace Lunar.RemoteProcess
                 {
                     // Read the API set namespace entry
 
-                    var namespaceEntryAddress = _pebData.ApiSetMapAddress + @namespace.EntryOffset + Unsafe.SizeOf<ApiSetNamespaceEntry>() * hashEntry.Index;
+                    var namespaceEntryAddress = _pebData.ApiSetMapAddress + @namespace.EntryOffset + hashEntry.Index * Unsafe.SizeOf<ApiSetNamespaceEntry>();
 
                     namespaceEntry = _process.ReadStructure<ApiSetNamespaceEntry>(namespaceEntryAddress);
 
@@ -198,9 +200,9 @@ namespace Lunar.RemoteProcess
 
             var valueEntryNameAddress = _pebData.ApiSetMapAddress + valueEntry.ValueOffset;
 
-            var valueEntryNameBytes = _process.ReadBuffer<byte>(valueEntryNameAddress, valueEntry.ValueCount);
+            var valueEntryNameBlock = _process.ReadArray<byte>(valueEntryNameAddress, valueEntry.ValueCount);
 
-            return Encoding.Unicode.GetString(valueEntryNameBytes);
+            return Encoding.Unicode.GetString(valueEntryNameBlock);
         }
 
         private PebData ReadPebData()
@@ -213,32 +215,14 @@ namespace Lunar.RemoteProcess
                 {
                     // Query the process for the address of its WOW64 PEB
 
-                    Span<byte> pebAddressBytes = stackalloc byte[IntPtr.Size];
-
-                    var ntStatus = Ntdll.NtQueryInformationProcess(_process.SafeHandle, ProcessInformationClass.Wow64Information, out pebAddressBytes[0], pebAddressBytes.Length, out _);
-
-                    if (ntStatus != NtStatus.Success)
-                    {
-                        throw new Win32Exception(Ntdll.RtlNtStatusToDosError(ntStatus));
-                    }
-
-                    pebAddress = MemoryMarshal.Read<IntPtr>(pebAddressBytes);
+                    pebAddress = _process.QueryInformation<IntPtr>(ProcessInformationClass.Wow64Information);
                 }
 
                 else
                 {
                     // Query the process for its BasicInformation
 
-                    Span<byte> basicInformationBytes = stackalloc byte[Unsafe.SizeOf<ProcessBasicInformation32>()];
-
-                    var ntStatus = Ntdll.NtQueryInformationProcess(_process.SafeHandle, ProcessInformationClass.BasicInformation, out basicInformationBytes[0], basicInformationBytes.Length, out _);
-
-                    if (ntStatus != NtStatus.Success)
-                    {
-                        throw new Win32Exception(Ntdll.RtlNtStatusToDosError(ntStatus));
-                    }
-
-                    var basicInformation = MemoryMarshal.Read<ProcessBasicInformation32>(basicInformationBytes);
+                    var basicInformation = _process.QueryInformation<ProcessBasicInformation32>(ProcessInformationClass.BasicInformation);
 
                     pebAddress = new IntPtr(basicInformation.PebBaseAddress);
                 }
@@ -254,16 +238,7 @@ namespace Lunar.RemoteProcess
             {
                 // Query the process for its BasicInformation
 
-                Span<byte> basicInformationBytes = stackalloc byte[Unsafe.SizeOf<ProcessBasicInformation64>()];
-
-                var ntStatus = Ntdll.NtQueryInformationProcess(_process.SafeHandle, ProcessInformationClass.BasicInformation, out basicInformationBytes[0], basicInformationBytes.Length, out _);
-
-                if (ntStatus != NtStatus.Success)
-                {
-                    throw new Win32Exception(Ntdll.RtlNtStatusToDosError(ntStatus));
-                }
-
-                var basicInformation = MemoryMarshal.Read<ProcessBasicInformation64>(basicInformationBytes);
+                var basicInformation = _process.QueryInformation<ProcessBasicInformation64>(ProcessInformationClass.BasicInformation);
 
                 // Read the PEB
 

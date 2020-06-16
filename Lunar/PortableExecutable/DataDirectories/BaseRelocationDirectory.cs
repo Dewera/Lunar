@@ -12,7 +12,7 @@ namespace Lunar.PortableExecutable.DataDirectories
     {
         internal IEnumerable<BaseRelocation> BaseRelocations { get; }
 
-        internal BaseRelocationDirectory(Memory<byte> imageBytes, PEHeaders headers) : base(imageBytes, headers)
+        internal BaseRelocationDirectory(Memory<byte> imageBlock, PEHeaders headers) : base(imageBlock, headers)
         {
             BaseRelocations = ReadBaseRelocations();
         }

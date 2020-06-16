@@ -10,7 +10,7 @@ namespace Lunar.PortableExecutable.DataDirectories
     {
         internal IEnumerable<TlsCallBack> TlsCallBacks { get; }
 
-        internal TlsDirectory(Memory<byte> imageBytes, PEHeaders headers) : base(imageBytes, headers)
+        internal TlsDirectory(Memory<byte> imageBlock, PEHeaders headers) : base(imageBlock, headers)
         {
             TlsCallBacks = ReadTlsCallbacks();
         }
