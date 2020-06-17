@@ -106,7 +106,7 @@ namespace Lunar
                 return;
             }
 
-            DllBaseAddress = _processManager.Process.AllocateBuffer(_peImage.Headers.PEHeader.SizeOfImage, false, true);
+            DllBaseAddress = _processManager.Process.AllocateBuffer(_peImage.Headers.PEHeader.SizeOfImage);
 
             LoadDependencies();
 
@@ -172,9 +172,17 @@ namespace Lunar
                 {
                     // Write the address of the function into the import address table
 
-                    var functionAddress = function.Name is null
-                                              ? _processManager.GetFunctionAddress(importDescriptor.Name, function.Ordinal)
-                                              : _processManager.GetFunctionAddress(importDescriptor.Name, function.Name);
+                    IntPtr functionAddress;
+
+                    if (function.Name is null)
+                    {
+                        functionAddress = _processManager.GetFunctionAddress(importDescriptor.Name, function.Ordinal);
+                    }
+
+                    else
+                    {
+                        functionAddress = _processManager.GetFunctionAddress(importDescriptor.Name, function.Name);
+                    }
 
                     MemoryMarshal.Write(_dllBlock.Slice(function.IatOffset).Span, ref functionAddress);
                 }
@@ -280,11 +288,11 @@ namespace Lunar
                     return;
                 }
 
-                // Read the inverted function table entry array
+                // Read the inverted function table entries
 
-                var entryArrayAddress = functionTableAddress + Unsafe.SizeOf<RtlInvertedFunctionTable>();
+                var functionTableEntriesAddress = functionTableAddress + Unsafe.SizeOf<RtlInvertedFunctionTable>();
 
-                var entryArray = _processManager.Process.ReadArray<RtlInvertedFunctionTableEntry32>(entryArrayAddress, Constants.InvertedFunctionTableEntryArraySize);
+                var functionTableEntries = _processManager.Process.ReadArray<RtlInvertedFunctionTableEntry32>(functionTableEntriesAddress, Constants.InvertedFunctionTableEntryArraySize);
 
                 // Determine where the new inverted function table entry should be inserted
 
@@ -292,7 +300,7 @@ namespace Lunar
 
                 while (insertionIndex < functionTable.Count)
                 {
-                    if ((uint) DllBaseAddress.ToInt32() < (uint) entryArray[insertionIndex].ImageBase)
+                    if (DllBaseAddress.ToInt32() < functionTableEntries[insertionIndex].ImageBase)
                     {
                         break;
                     }
@@ -300,13 +308,13 @@ namespace Lunar
                     insertionIndex += 1;
                 }
 
-                // Shift the existing elements to make space for the new inverted function table entry if needed
-
                 if (insertionIndex < functionTable.Count)
                 {
+                    // Shift the existing elements to make space for the new inverted function table entry
+
                     for (var entryIndex = functionTable.Count - 1; entryIndex >= insertionIndex; entryIndex -= 1)
                     {
-                        entryArray[entryIndex + 1] = entryArray[entryIndex];
+                        functionTableEntries[entryIndex + 1] = functionTableEntries[entryIndex];
                     }
                 }
 
@@ -318,21 +326,23 @@ namespace Lunar
 
                 // Encode the address of the exception directory using the system pointer encoding algorithm
 
-                var xoredAddress = (DllBaseAddress.ToInt32() + _peImage.LoadConfigDirectory.SehTable.Rva) ^ sharedUserData.Cookie;
+                var exceptionDirectoryAddress = DllBaseAddress + _peImage.LoadConfigDirectory.SehTable.Rva;
+
+                var xoredAddress = exceptionDirectoryAddress.ToInt32() ^ sharedUserData.Cookie;
 
                 var lowerCookieBits = sharedUserData.Cookie & 0x1F;
 
-                var encodedAddress = ((uint) xoredAddress >> lowerCookieBits) | ((uint) xoredAddress << (32 - lowerCookieBits));
+                var rotatedAddress = ((uint) xoredAddress >> lowerCookieBits) | ((uint) xoredAddress << (32 - lowerCookieBits));
 
                 // Initialise a new function table entry for the DLL
 
-                var newEntry = new RtlInvertedFunctionTableEntry32((int) encodedAddress, DllBaseAddress.ToInt32(), _peImage.Headers.PEHeader.SizeOfImage, _peImage.LoadConfigDirectory.SehTable.HandlerCount);
+                var newFunctionTableEntry = new RtlInvertedFunctionTableEntry32((int) rotatedAddress, DllBaseAddress.ToInt32(), _peImage.Headers.PEHeader.SizeOfImage, _peImage.LoadConfigDirectory.SehTable.HandlerCount);
 
-                entryArray[insertionIndex] = newEntry;
+                functionTableEntries[insertionIndex] = newFunctionTableEntry;
 
-                // Update the existing inverted function table entry array
+                // Update the existing inverted function table entries
 
-                _processManager.Process.WriteArray(entryArrayAddress, entryArray);
+                _processManager.Process.WriteArray(functionTableEntriesAddress, functionTableEntries);
 
                 // Update the inverted function table
 
@@ -347,19 +357,19 @@ namespace Lunar
 
                 catch
                 {
-                    // Restore the original inverted function table entry array
+                    // Restore the original inverted function table entries
 
-                    _processManager.Process.WriteArray(entryArrayAddress, entryArray);
+                    _processManager.Process.WriteArray(functionTableEntriesAddress, functionTableEntries);
                 }
             }
 
             else
             {
-                // Read the inverted function table entry array
+                // Read the inverted function table entries
 
-                var entryArrayAddress = functionTableAddress + Unsafe.SizeOf<RtlInvertedFunctionTable>();
+                var functionTableEntriesAddress = functionTableAddress + Unsafe.SizeOf<RtlInvertedFunctionTable>();
 
-                var entryArray = _processManager.Process.ReadArray<RtlInvertedFunctionTableEntry64>(entryArrayAddress, Constants.InvertedFunctionTableEntryArraySize);
+                var functionTableEntries = _processManager.Process.ReadArray<RtlInvertedFunctionTableEntry64>(functionTableEntriesAddress, Constants.InvertedFunctionTableEntryArraySize);
 
                 // Determine where the new inverted function table entry should be inserted
 
@@ -367,7 +377,7 @@ namespace Lunar
 
                 while (insertionIndex < functionTable.Count)
                 {
-                    if (DllBaseAddress.ToInt64() < entryArray[insertionIndex].ImageBase)
+                    if (DllBaseAddress.ToInt64() < functionTableEntries[insertionIndex].ImageBase)
                     {
                         break;
                     }
@@ -375,13 +385,13 @@ namespace Lunar
                     insertionIndex += 1;
                 }
 
-                // Shift the existing elements to make space for the new inverted function table entry if needed
-
                 if (insertionIndex < functionTable.Count)
                 {
+                    // Shift the existing elements to make space for the new inverted function table entry
+
                     for (var entryIndex = functionTable.Count - 1; entryIndex >= insertionIndex; entryIndex -= 1)
                     {
-                        entryArray[entryIndex + 1] = entryArray[entryIndex];
+                        functionTableEntries[entryIndex + 1] = functionTableEntries[entryIndex];
                     }
                 }
 
@@ -389,13 +399,13 @@ namespace Lunar
 
                 var exceptionDirectoryAddress = DllBaseAddress + _peImage.Headers.PEHeader.ExceptionTableDirectory.RelativeVirtualAddress;
 
-                var newEntry = new RtlInvertedFunctionTableEntry64(exceptionDirectoryAddress.ToInt64(), DllBaseAddress.ToInt64(), _peImage.Headers.PEHeader.SizeOfImage, _peImage.Headers.PEHeader.ExceptionTableDirectory.Size);
+                var newFunctionTableEntry = new RtlInvertedFunctionTableEntry64(exceptionDirectoryAddress.ToInt64(), DllBaseAddress.ToInt64(), _peImage.Headers.PEHeader.SizeOfImage, _peImage.Headers.PEHeader.ExceptionTableDirectory.Size);
 
-                entryArray[insertionIndex] = newEntry;
+                functionTableEntries[insertionIndex] = newFunctionTableEntry;
 
-                // Update the existing inverted function table entry array
+                // Update the existing inverted function table entries
 
-                _processManager.Process.WriteArray(entryArrayAddress, entryArray);
+                _processManager.Process.WriteArray(functionTableEntriesAddress, functionTableEntries);
 
                 // Update the inverted function table
 
@@ -410,9 +420,9 @@ namespace Lunar
 
                 catch
                 {
-                    // Restore the original inverted function table entry array
+                    // Restore the original inverted function table entries
 
-                    _processManager.Process.WriteArray(entryArrayAddress, entryArray);
+                    _processManager.Process.WriteArray(functionTableEntriesAddress, functionTableEntries);
                 }
             }
         }
@@ -570,19 +580,19 @@ namespace Lunar
                     return;
                 }
 
-                // Read the inverted function table entry array
+                // Read the inverted function table entries
 
-                var entryArrayAddress = functionTableAddress + Unsafe.SizeOf<RtlInvertedFunctionTable>();
+                var functionTableEntriesAddress = functionTableAddress + Unsafe.SizeOf<RtlInvertedFunctionTable>();
 
-                var entryArray = _processManager.Process.ReadArray<RtlInvertedFunctionTableEntry32>(entryArrayAddress, Constants.InvertedFunctionTableEntryArraySize);
+                var functionTableEntries = _processManager.Process.ReadArray<RtlInvertedFunctionTableEntry32>(functionTableEntriesAddress, Constants.InvertedFunctionTableEntryArraySize);
 
-                // Determine where the function table entry should be removed
+                // Determine where the inverted function table entry should be removed
 
                 var removalIndex = 1;
 
                 while (removalIndex < functionTable.Count)
                 {
-                    if ((uint) DllBaseAddress.ToInt32() == (uint) entryArray[removalIndex].ImageBase)
+                    if (DllBaseAddress.ToInt32() == functionTableEntries[removalIndex].ImageBase)
                     {
                         break;
                     }
@@ -590,24 +600,24 @@ namespace Lunar
                     removalIndex += 1;
                 }
 
-                // Shift the existing elements to overwrite the function table entry
+                // Shift the existing elements to overwrite the inverted function table entry
 
                 if (removalIndex < functionTable.Count - 1)
                 {
                     for (var entryIndex = removalIndex; entryIndex < functionTable.Count; entryIndex += 1)
                     {
-                        entryArray[entryIndex] = entryArray[entryIndex + 1];
+                        functionTableEntries[entryIndex] = functionTableEntries[entryIndex + 1];
                     }
                 }
 
                 else
                 {
-                    entryArray[removalIndex] = new RtlInvertedFunctionTableEntry32();
+                    functionTableEntries[removalIndex] = new RtlInvertedFunctionTableEntry32();
                 }
 
-                // Update the existing inverted function table entry array
+                // Update the existing inverted function table entries
 
-                _processManager.Process.WriteArray(entryArrayAddress, entryArray);
+                _processManager.Process.WriteArray(functionTableEntriesAddress, functionTableEntries);
 
                 // Update the inverted function table
 
@@ -620,27 +630,27 @@ namespace Lunar
 
                 catch
                 {
-                    // Restore the original inverted function table entry array
+                    // Restore the original inverted function table entries
 
-                    _processManager.Process.WriteArray(entryArrayAddress, entryArray);
+                    _processManager.Process.WriteArray(functionTableEntriesAddress, functionTableEntries);
                 }
             }
 
             else
             {
-                // Read the inverted function table entry array
+                // Read the inverted function table entries
 
-                var entryArrayAddress = functionTableAddress + Unsafe.SizeOf<RtlInvertedFunctionTable>();
+                var functionTableEntriesAddress = functionTableAddress + Unsafe.SizeOf<RtlInvertedFunctionTable>();
 
-                var entryArray = _processManager.Process.ReadArray<RtlInvertedFunctionTableEntry64>(entryArrayAddress, Constants.InvertedFunctionTableEntryArraySize);
+                var functionTableEntries = _processManager.Process.ReadArray<RtlInvertedFunctionTableEntry64>(functionTableEntriesAddress, Constants.InvertedFunctionTableEntryArraySize);
 
-                // Determine where the function table entry should be removed
+                // Determine where the inverted function table entry should be removed
 
                 var removalIndex = 1;
 
                 while (removalIndex < functionTable.Count)
                 {
-                    if (DllBaseAddress.ToInt64() == entryArray[removalIndex].ImageBase)
+                    if (DllBaseAddress.ToInt64() == functionTableEntries[removalIndex].ImageBase)
                     {
                         break;
                     }
@@ -648,24 +658,24 @@ namespace Lunar
                     removalIndex += 1;
                 }
 
-                // Shift the existing elements to overwrite the function table entry
+                // Shift the existing elements to overwrite the inverted function table entry
 
                 if (removalIndex < functionTable.Count - 1)
                 {
                     for (var entryIndex = removalIndex; entryIndex < functionTable.Count; entryIndex += 1)
                     {
-                        entryArray[entryIndex] = entryArray[entryIndex + 1];
+                        functionTableEntries[entryIndex] = functionTableEntries[entryIndex + 1];
                     }
                 }
 
                 else
                 {
-                    entryArray[removalIndex] = new RtlInvertedFunctionTableEntry64();
+                    functionTableEntries[removalIndex] = new RtlInvertedFunctionTableEntry64();
                 }
 
-                // Update the existing inverted function table entry array
+                // Update the existing inverted function table entries
 
-                _processManager.Process.WriteArray(entryArrayAddress, entryArray);
+                _processManager.Process.WriteArray(functionTableEntriesAddress, functionTableEntries);
 
                 // Update the inverted function table
 
@@ -678,9 +688,9 @@ namespace Lunar
 
                 catch
                 {
-                    // Restore the original inverted function table entry array
+                    // Restore the original inverted function table entries
 
-                    _processManager.Process.WriteArray(entryArrayAddress, entryArray);
+                    _processManager.Process.WriteArray(functionTableEntriesAddress, functionTableEntries);
                 }
             }
         }

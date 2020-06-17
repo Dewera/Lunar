@@ -10,14 +10,9 @@ namespace Lunar.Extensions
 {
     internal static class ProcessExtensions
     {
-        internal static IntPtr AllocateBuffer(this Process process, int bufferSize, bool executable = false, bool topDown = false)
+        internal static IntPtr AllocateBuffer(this Process process, int bufferSize, bool executable = false)
         {
-            var allocationType = AllocationType.Commit | AllocationType.Reserve;
-
-            if (topDown)
-            {
-                allocationType |= AllocationType.TopDown;
-            }
+            const AllocationType allocationType = AllocationType.Commit | AllocationType.Reserve;
 
             var protectionType = executable ? ProtectionType.ExecuteReadWrite : ProtectionType.ReadWrite;
 
