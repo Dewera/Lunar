@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Lunar.Native.Enumerations;
 using Lunar.Native.Structures;
 using Lunar.PortableExecutable.Structures;
@@ -12,7 +13,7 @@ namespace Lunar.PortableExecutable.DataDirectories
     {
         internal IEnumerable<BaseRelocation> BaseRelocations { get; }
 
-        internal BaseRelocationDirectory(Memory<byte> imageBlock, PEHeaders headers) : base(imageBlock, headers)
+        internal BaseRelocationDirectory(PEHeaders headers, Memory<byte> imageBlock) : base(headers, imageBlock)
         {
             BaseRelocations = ReadBaseRelocations();
         }
@@ -28,7 +29,7 @@ namespace Lunar.PortableExecutable.DataDirectories
             {
                 // Read the base relocation block
 
-                var relocationBlock = ReadStructure<ImageBaseRelocation>(currentRelocationBlockOffset);
+                var relocationBlock = MemoryMarshal.Read<ImageBaseRelocation>(ImageBlock.Span.Slice(currentRelocationBlockOffset));
 
                 if (relocationBlock.SizeOfBlock == 0)
                 {
@@ -43,9 +44,9 @@ namespace Lunar.PortableExecutable.DataDirectories
                 {
                     // Read the relocation
 
-                    var relocationOffset = relocationBlockOffset + Unsafe.SizeOf<short>() * relocationIndex;
+                    var relocationOffset = relocationBlockOffset + relocationIndex * sizeof(short);
 
-                    var relocation = ReadStructure<ushort>(relocationOffset);
+                    var relocation = MemoryMarshal.Read<ushort>(ImageBlock.Span.Slice(relocationOffset));
 
                     // The offset is located in the lower 12 bits of the base relocation
 

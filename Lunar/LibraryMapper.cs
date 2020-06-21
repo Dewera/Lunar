@@ -164,7 +164,7 @@ namespace Lunar
 
         private void BuildImportAddressTable()
         {
-            var importDescriptors = _peImage.ImportDirectory.ImportDescriptors.Concat(_peImage.DelayImportDirectory.DelayLoadImportDescriptors).ToArray();
+            var importDescriptors = _peImage.ImportDirectory.ImportDescriptors.Concat(_peImage.DelayImportDirectory.DelayLoadImportDescriptors);
 
             Parallel.ForEach(importDescriptors, importDescriptor =>
             {
@@ -184,7 +184,7 @@ namespace Lunar
                         functionAddress = _processManager.GetFunctionAddress(importDescriptor.Name, function.Name);
                     }
 
-                    MemoryMarshal.Write(_dllBlock.Slice(function.IatOffset).Span, ref functionAddress);
+                    MemoryMarshal.Write(_dllBlock.Span.Slice(function.IatOffset), ref functionAddress);
                 }
             });
         }
@@ -472,9 +472,9 @@ namespace Lunar
             {
                 // Map the headers
 
-                var headerBlock = _dllBlock.Slice(0, _peImage.Headers.PEHeader.SizeOfHeaders);
+                var headerBlock = _dllBlock.Span.Slice(0, _peImage.Headers.PEHeader.SizeOfHeaders);
 
-                _processManager.Process.WriteArray(DllBaseAddress, headerBlock.Span);
+                _processManager.Process.WriteArray(DllBaseAddress, headerBlock);
 
                 _processManager.Process.ProtectBuffer(DllBaseAddress, _peImage.Headers.PEHeader.SizeOfHeaders, ProtectionType.ReadOnly);
             }
@@ -490,9 +490,9 @@ namespace Lunar
 
                 var sectionAddress = DllBaseAddress + section.VirtualAddress;
 
-                var sectionBlock = _dllBlock.Slice(section.PointerToRawData, section.SizeOfRawData);
+                var sectionBlock = _dllBlock.Span.Slice(section.PointerToRawData, section.SizeOfRawData);
 
-                _processManager.Process.WriteArray(sectionAddress, sectionBlock.Span);
+                _processManager.Process.WriteArray(sectionAddress, sectionBlock);
 
                 // Determine the protection to apply to the section
 
@@ -532,36 +532,46 @@ namespace Lunar
 
         private void RelocateImage()
         {
-            // Calculate the delta from the preferred base address
-
-            var delta = DllBaseAddress.ToInt64() - (long) _peImage.Headers.PEHeader.ImageBase;
-
-            foreach (var relocation in _peImage.BaseRelocationDirectory.BaseRelocations)
+            if (_processManager.Process.GetArchitecture() == Architecture.X86)
             {
-                switch (relocation.Type)
+                // Calculate the delta from the preferred base address
+
+                var delta = DllBaseAddress.ToInt32() - (int) _peImage.Headers.PEHeader.ImageBase;
+
+                Parallel.ForEach(_peImage.BaseRelocationDirectory.BaseRelocations, baseRelocation =>
                 {
-                    case BaseRelocationType.HighLow:
+                    if (baseRelocation.Type != BaseRelocationType.HighLow)
                     {
-                        // Perform the relocation
-
-                        var relocationValue = MemoryMarshal.Read<int>(_dllBlock.Slice(relocation.Offset).Span) + (int) delta;
-
-                        MemoryMarshal.Write(_dllBlock.Slice(relocation.Offset).Span, ref relocationValue);
-
-                        break;
+                        return;
                     }
 
-                    case BaseRelocationType.Dir64:
+                    // Perform the relocation
+
+                    var relocationValue = MemoryMarshal.Read<int>(_dllBlock.Span.Slice(baseRelocation.Offset)) + delta;
+
+                    MemoryMarshal.Write(_dllBlock.Span.Slice(baseRelocation.Offset), ref relocationValue);
+                });
+            }
+
+            else
+            {
+                // Calculate the delta from the preferred base address
+
+                var delta = DllBaseAddress.ToInt64() - (long) _peImage.Headers.PEHeader.ImageBase;
+
+                Parallel.ForEach(_peImage.BaseRelocationDirectory.BaseRelocations, baseRelocation =>
+                {
+                    if (baseRelocation.Type != BaseRelocationType.Dir64)
                     {
-                        // Perform the relocation
-
-                        var relocationValue = MemoryMarshal.Read<long>(_dllBlock.Slice(relocation.Offset).Span) + delta;
-
-                        MemoryMarshal.Write(_dllBlock.Slice(relocation.Offset).Span, ref relocationValue);
-
-                        break;
+                        return;
                     }
-                }
+
+                    // Perform the relocation
+
+                    var relocationValue = MemoryMarshal.Read<long>(_dllBlock.Span.Slice(baseRelocation.Offset)) + delta;
+
+                    MemoryMarshal.Write(_dllBlock.Span.Slice(baseRelocation.Offset), ref relocationValue);
+                });
             }
         }
 

@@ -28,17 +28,17 @@ namespace Lunar.PortableExecutable
         {
             using var peReader = new PEReader(new MemoryStream(imageBytes.ToArray()));
 
-            BaseRelocationDirectory = new BaseRelocationDirectory(imageBytes, peReader.PEHeaders);
+            BaseRelocationDirectory = new BaseRelocationDirectory(peReader.PEHeaders, imageBytes);
 
-            DelayImportDirectory = new DelayImportDirectory(imageBytes, peReader.PEHeaders);
+            DelayImportDirectory = new DelayImportDirectory(peReader.PEHeaders, imageBytes);
 
-            ExportDirectory = new ExportDirectory(imageBytes, peReader.PEHeaders);
+            ExportDirectory = new ExportDirectory(peReader.PEHeaders, imageBytes);
 
             Headers = peReader.PEHeaders;
 
-            ImportDirectory = new ImportDirectory(imageBytes, peReader.PEHeaders);
+            ImportDirectory = new ImportDirectory(peReader.PEHeaders, imageBytes);
 
-            LoadConfigDirectory = new LoadConfigDirectory(imageBytes, peReader.PEHeaders);
+            LoadConfigDirectory = new LoadConfigDirectory(peReader.PEHeaders, imageBytes);
 
             var debugDirectoryEntries = peReader.ReadDebugDirectory();
 
@@ -49,7 +49,7 @@ namespace Lunar.PortableExecutable
                 PdbData = peReader.ReadCodeViewDebugDirectoryData(codeViewEntry);
             }
 
-            TlsDirectory = new TlsDirectory(imageBytes, peReader.PEHeaders);
+            TlsDirectory = new TlsDirectory(peReader.PEHeaders, imageBytes);
 
             ValidatePeImage();
         }

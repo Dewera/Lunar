@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Lunar.Native.Structures;
 using Lunar.PortableExecutable.Structures;
 
@@ -11,7 +12,7 @@ namespace Lunar.PortableExecutable.DataDirectories
     {
         internal IEnumerable<ImportDescriptor> ImportDescriptors { get; }
 
-        internal ImportDirectory(Memory<byte> imageBlock, PEHeaders headers) : base(imageBlock, headers)
+        internal ImportDirectory(PEHeaders headers, Memory<byte> imageBlock) : base(headers, imageBlock)
         {
             ImportDescriptors = ReadImportDescriptors();
         }
@@ -27,7 +28,7 @@ namespace Lunar.PortableExecutable.DataDirectories
             {
                 // Read the import descriptor
 
-                var descriptor = ReadStructure<ImageImportDescriptor>(currentDescriptorOffset);
+                var descriptor = MemoryMarshal.Read<ImageImportDescriptor>(ImageBlock.Span.Slice(currentDescriptorOffset));
 
                 if (descriptor.FirstThunk == 0)
                 {
@@ -38,7 +39,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                 var descriptorNameOffset = RvaToOffset(descriptor.Name);
 
-                var descriptorName = ReadNullTerminatedString(descriptorNameOffset);
+                var descriptorName = ReadString(descriptorNameOffset);
 
                 // Read the functions imported under the import descriptor
 
@@ -64,7 +65,7 @@ namespace Lunar.PortableExecutable.DataDirectories
                 {
                     // Read the thunk of the imported function
 
-                    var functionThunk = ReadStructure<int>(currentThunkOffset);
+                    var functionThunk = MemoryMarshal.Read<int>(ImageBlock.Span.Slice(currentThunkOffset));
 
                     if (functionThunk == 0)
                     {
@@ -87,7 +88,7 @@ namespace Lunar.PortableExecutable.DataDirectories
                 {
                     // Read the thunk of the imported function
 
-                    var functionThunk = ReadStructure<long>(currentThunkOffset);
+                    var functionThunk = MemoryMarshal.Read<long>(ImageBlock.Span.Slice(currentThunkOffset));
 
                     if (functionThunk == 0)
                     {
@@ -110,11 +111,11 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                 var functionNameOffset = functionDataOffset + sizeof(short);
 
-                var functionName = ReadNullTerminatedString(functionNameOffset);
+                var functionName = ReadString(functionNameOffset);
 
                 // Read the ordinal of the imported function
 
-                var functionOrdinal = ReadStructure<short>(functionDataOffset);
+                var functionOrdinal = MemoryMarshal.Read<short>(ImageBlock.Span.Slice(functionDataOffset));
 
                 yield return new ImportedFunction(currentIatOffset, functionName, functionOrdinal);
 

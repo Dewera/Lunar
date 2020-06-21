@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Reflection.PortableExecutable;
-using System.Runtime.InteropServices;
 using System.Text;
 
 namespace Lunar.PortableExecutable
@@ -9,30 +8,25 @@ namespace Lunar.PortableExecutable
     {
         protected PEHeaders Headers { get; }
 
-        private readonly Memory<byte> _imageBlock;
+        protected Memory<byte> ImageBlock { get; }
 
-        protected DataDirectory(Memory<byte> imageBlock, PEHeaders headers)
+        protected DataDirectory(PEHeaders headers, Memory<byte> imageBlock)
         {
-            _imageBlock = imageBlock;
-
             Headers = headers;
+
+            ImageBlock = imageBlock;
         }
 
-        protected string ReadNullTerminatedString(int offset)
+        protected string ReadString(int offset)
         {
             var stringLength = 0;
 
-            while (_imageBlock.Span[offset + stringLength] != byte.MinValue)
+            while (ImageBlock.Span[offset + stringLength] != byte.MinValue)
             {
                 stringLength += 1;
             }
 
-            return Encoding.UTF8.GetString(_imageBlock.Slice(offset, stringLength).Span);
-        }
-
-        protected T ReadStructure<T>(int offset) where T : unmanaged
-        {
-            return MemoryMarshal.Read<T>(_imageBlock.Slice(offset).Span);
+            return Encoding.UTF8.GetString(ImageBlock.Span.Slice(offset, stringLength));
         }
 
         protected int RvaToOffset(int rva)
@@ -40,6 +34,11 @@ namespace Lunar.PortableExecutable
             var sectionHeader = Headers.SectionHeaders[Headers.GetContainingSectionIndex(rva)];
 
             return rva - sectionHeader.VirtualAddress + sectionHeader.PointerToRawData;
+        }
+
+        protected int VaToRva(int va)
+        {
+            return (int) (va - (int) Headers.PEHeader.ImageBase);
         }
 
         protected int VaToRva(long va)

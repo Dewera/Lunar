@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Reflection.PortableExecutable;
+using System.Runtime.InteropServices;
 using Lunar.Native.Structures;
 using Lunar.PortableExecutable.Structures;
 
@@ -11,7 +12,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
         internal SehTable? SehTable { get; }
 
-        internal LoadConfigDirectory(Memory<byte> imageBlock, PEHeaders headers) : base(imageBlock, headers)
+        internal LoadConfigDirectory(PEHeaders headers, Memory<byte> imageBlock) : base(headers, imageBlock)
         {
             SecurityCookie = ReadSecurityCookie();
 
@@ -31,7 +32,7 @@ namespace Lunar.PortableExecutable.DataDirectories
             {
                 // Read the load config directory
 
-                var loadConfigDirectory = ReadStructure<ImageLoadConfigDirectory32>(loadConfigDirectoryOffset);
+                var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory32>(ImageBlock.Span.Slice(loadConfigDirectoryOffset));
 
                 securityCookieRva = loadConfigDirectory.SecurityCookie == 0 ? 0 : VaToRva(loadConfigDirectory.SecurityCookie);
             }
@@ -40,7 +41,7 @@ namespace Lunar.PortableExecutable.DataDirectories
             {
                 // Read the load config directory
 
-                var loadConfigDirectory = ReadStructure<ImageLoadConfigDirectory64>(loadConfigDirectoryOffset);
+                var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory64>(ImageBlock.Span.Slice(loadConfigDirectoryOffset));
 
                 securityCookieRva = loadConfigDirectory.SecurityCookie == 0 ? 0 : VaToRva(loadConfigDirectory.SecurityCookie);
             }
@@ -57,7 +58,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
             // Read the load config directory
 
-            var loadConfigDirectory = ReadStructure<ImageLoadConfigDirectory32>(loadConfigDirectoryOffset);
+            var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory32>(ImageBlock.Span.Slice(loadConfigDirectoryOffset));
 
             var handlerCount = loadConfigDirectory.SEHandlerCount == 0 ? -1 : loadConfigDirectory.SEHandlerCount;
 

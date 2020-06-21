@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Reflection.PortableExecutable;
+using System.Runtime.InteropServices;
 using Lunar.Native.Structures;
 using Lunar.PortableExecutable.Structures;
 
@@ -10,7 +11,7 @@ namespace Lunar.PortableExecutable.DataDirectories
     {
         internal IEnumerable<ExportedFunction> ExportedFunctions { get; }
 
-        internal ExportDirectory(Memory<byte> imageBlock, PEHeaders headers) : base(imageBlock, headers)
+        internal ExportDirectory(PEHeaders headers, Memory<byte> imageBlock) : base(headers, imageBlock)
         {
             ExportedFunctions = ReadExportedFunctions();
         }
@@ -24,7 +25,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
             // Read the export directory
 
-            var exportDirectory = ReadStructure<ImageExportDirectory>(exportDirectoryOffset);
+            var exportDirectory = MemoryMarshal.Read<ImageExportDirectory>(ImageBlock.Span.Slice(exportDirectoryOffset));
 
             var functionNamesRvasBaseOffset = RvaToOffset(exportDirectory.AddressOfNames);
 
@@ -36,25 +37,25 @@ namespace Lunar.PortableExecutable.DataDirectories
             {
                 // Read the name of the exported function
 
-                var functionNameOffsetRvaOffset = functionNamesRvasBaseOffset + sizeof(int) * functionIndex;
+                var functionNameOffsetRvaOffset = functionNamesRvasBaseOffset + functionIndex * sizeof(int);
 
-                var functionNameOffsetRva = ReadStructure<int>(functionNameOffsetRvaOffset);
+                var functionNameOffsetRva = MemoryMarshal.Read<int>(ImageBlock.Span.Slice(functionNameOffsetRvaOffset));
 
                 var functionNameOffset = RvaToOffset(functionNameOffsetRva);
 
-                var functionName = ReadNullTerminatedString(functionNameOffset);
+                var functionName = ReadString(functionNameOffset);
 
                 // Read the ordinal of the exported function
 
-                var functionOrdinalOffset = functionOrdinalsBaseOffset + sizeof(short) * functionIndex;
+                var functionOrdinalOffset = functionOrdinalsBaseOffset + functionIndex * sizeof(short);
 
-                var functionOrdinal = ReadStructure<short>(functionOrdinalOffset);
+                var functionOrdinal = MemoryMarshal.Read<short>(ImageBlock.Span.Slice(functionOrdinalOffset));
 
                 // Read the relative virtual address of the function
 
-                var functionRvaOffset = functionRvasBaseOffset + sizeof(int) * functionOrdinal;
+                var functionRvaOffset = functionRvasBaseOffset + functionOrdinal * sizeof(int);
 
-                var functionRva = ReadStructure<int>(functionRvaOffset);
+                var functionRva = MemoryMarshal.Read<int>(ImageBlock.Span.Slice(functionRvaOffset));
 
                 // Check if the exported function is forwarded
 
@@ -73,7 +74,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                 var forwarderStringOffset = RvaToOffset(functionRva);
 
-                var forwarderString = ReadNullTerminatedString(forwarderStringOffset);
+                var forwarderString = ReadString(forwarderStringOffset);
 
                 yield return new ExportedFunction(forwarderString, functionName, exportDirectory.Base + functionOrdinal, functionRva);
             }

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Reflection.PortableExecutable;
+using System.Runtime.InteropServices;
 using Lunar.Native.Structures;
 using Lunar.PortableExecutable.Structures;
 
@@ -10,7 +11,7 @@ namespace Lunar.PortableExecutable.DataDirectories
     {
         internal IEnumerable<TlsCallBack> TlsCallBacks { get; }
 
-        internal TlsDirectory(Memory<byte> imageBlock, PEHeaders headers) : base(imageBlock, headers)
+        internal TlsDirectory(PEHeaders headers, Memory<byte> imageBlock) : base(headers, imageBlock)
         {
             TlsCallBacks = ReadTlsCallbacks();
         }
@@ -26,7 +27,7 @@ namespace Lunar.PortableExecutable.DataDirectories
             {
                 // Read the TLS directory
 
-                var tlsDirectory = ReadStructure<ImageTlsDirectory32>(tlsDirectoryOffset);
+                var tlsDirectory = MemoryMarshal.Read<ImageTlsDirectory32>(ImageBlock.Span.Slice(tlsDirectoryOffset));
 
                 if (tlsDirectory.AddressOfCallBacks == 0)
                 {
@@ -39,7 +40,7 @@ namespace Lunar.PortableExecutable.DataDirectories
                 {
                     // Read the virtual address of the TLS callback
 
-                    var callbackVa = ReadStructure<int>(currentCallbackVaOffset);
+                    var callbackVa = MemoryMarshal.Read<int>(ImageBlock.Span.Slice(currentCallbackVaOffset));
 
                     if (callbackVa == 0)
                     {
@@ -58,7 +59,7 @@ namespace Lunar.PortableExecutable.DataDirectories
             {
                 // Read the TLS directory
 
-                var tlsDirectory = ReadStructure<ImageTlsDirectory64>(tlsDirectoryOffset);
+                var tlsDirectory = MemoryMarshal.Read<ImageTlsDirectory64>(ImageBlock.Span.Slice(tlsDirectoryOffset));
 
                 if (tlsDirectory.AddressOfCallBacks == 0)
                 {
@@ -71,7 +72,7 @@ namespace Lunar.PortableExecutable.DataDirectories
                 {
                     // Read the virtual address of the TLS callback
 
-                    var callbackVa = ReadStructure<long>(currentCallbackVaOffset);
+                    var callbackVa = MemoryMarshal.Read<long>(ImageBlock.Span.Slice(currentCallbackVaOffset));
 
                     if (callbackVa == 0)
                     {

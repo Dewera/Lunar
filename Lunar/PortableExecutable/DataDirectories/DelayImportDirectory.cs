@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Lunar.Native.Structures;
 using Lunar.PortableExecutable.Structures;
 
@@ -11,7 +12,7 @@ namespace Lunar.PortableExecutable.DataDirectories
     {
         internal IEnumerable<ImportDescriptor> DelayLoadImportDescriptors { get; }
 
-        internal DelayImportDirectory(Memory<byte> imageBlock, PEHeaders headers) : base(imageBlock, headers)
+        internal DelayImportDirectory(PEHeaders headers, Memory<byte> imageBlock) : base(headers, imageBlock)
         {
             DelayLoadImportDescriptors = ReadDelayLoadImportDescriptors();
         }
@@ -27,7 +28,7 @@ namespace Lunar.PortableExecutable.DataDirectories
             {
                 // Read the delay load import descriptor
 
-                var descriptor = ReadStructure<ImageDelayLoadDescriptor>(currentDescriptorOffset);
+                var descriptor = MemoryMarshal.Read<ImageDelayLoadDescriptor>(ImageBlock.Span.Slice(currentDescriptorOffset));
 
                 if (descriptor.DllNameRva == 0)
                 {
@@ -38,7 +39,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                 var descriptorNameOffset = RvaToOffset(descriptor.DllNameRva);
 
-                var descriptorName = ReadNullTerminatedString(descriptorNameOffset);
+                var descriptorName = ReadString(descriptorNameOffset);
 
                 // Read the functions imported under the delay load import descriptor
 
@@ -46,7 +47,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                 var currentThunkOffset = RvaToOffset(descriptor.ImportNameTableRva);
 
-                var functions = ReadDelayLoadImportedFunctions(currentIatOffset, currentThunkOffset);
+                var functions = ReadImportedFunctions(currentIatOffset, currentThunkOffset);
 
                 yield return new ImportDescriptor(functions, descriptorName);
 
@@ -54,7 +55,7 @@ namespace Lunar.PortableExecutable.DataDirectories
             }
         }
 
-        private IEnumerable<ImportedFunction> ReadDelayLoadImportedFunctions(int currentIatOffset, int currentThunkOffset)
+        private IEnumerable<ImportedFunction> ReadImportedFunctions(int currentIatOffset, int currentThunkOffset)
         {
             while (true)
             {
@@ -64,7 +65,7 @@ namespace Lunar.PortableExecutable.DataDirectories
                 {
                     // Read the thunk of the imported function
 
-                    var functionThunk = ReadStructure<int>(currentThunkOffset);
+                    var functionThunk = MemoryMarshal.Read<int>(ImageBlock.Span.Slice(currentThunkOffset));
 
                     if (functionThunk == 0)
                     {
@@ -87,7 +88,7 @@ namespace Lunar.PortableExecutable.DataDirectories
                 {
                     // Read the thunk of the imported function
 
-                    var functionThunk = ReadStructure<long>(currentThunkOffset);
+                    var functionThunk = MemoryMarshal.Read<long>(ImageBlock.Span.Slice(currentThunkOffset));
 
                     if (functionThunk == 0)
                     {
@@ -110,11 +111,11 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                 var functionNameOffset = functionDataOffset + sizeof(short);
 
-                var functionName = ReadNullTerminatedString(functionNameOffset);
+                var functionName = ReadString(functionNameOffset);
 
                 // Read the ordinal of the imported function
 
-                var functionOrdinal = ReadStructure<short>(functionDataOffset);
+                var functionOrdinal = MemoryMarshal.Read<short>(ImageBlock.Span.Slice(functionDataOffset));
 
                 yield return new ImportedFunction(currentIatOffset, functionName, functionOrdinal);
 
