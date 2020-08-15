@@ -10,13 +10,9 @@ namespace Lunar.Extensions
 {
     internal static class ProcessExtensions
     {
-        internal static IntPtr AllocateBuffer(this Process process, int bufferSize, bool executable = false)
+        internal static IntPtr AllocateBuffer(this Process process, int size, bool executable = false)
         {
-            const AllocationType allocationType = AllocationType.Commit | AllocationType.Reserve;
-
-            var protectionType = executable ? ProtectionType.ExecuteReadWrite : ProtectionType.ReadWrite;
-
-            var bufferAddress = Kernel32.VirtualAllocEx(process.SafeHandle, IntPtr.Zero, bufferSize, allocationType, protectionType);
+            var bufferAddress = Kernel32.VirtualAllocEx(process.SafeHandle, IntPtr.Zero, size, AllocationType.Commit | AllocationType.Reserve, executable ? ProtectionType.ExecuteReadWrite : ProtectionType.ReadWrite);
 
             if (bufferAddress == IntPtr.Zero)
             {
@@ -26,9 +22,9 @@ namespace Lunar.Extensions
             return bufferAddress;
         }
 
-        internal static void FreeBuffer(this Process process, IntPtr bufferAddress)
+        internal static void FreeBuffer(this Process process, IntPtr address)
         {
-            if (!Kernel32.VirtualFreeEx(process.SafeHandle, bufferAddress, 0, FreeType.Release))
+            if (!Kernel32.VirtualFreeEx(process.SafeHandle, address, 0, FreeType.Release))
             {
                 throw new Win32Exception();
             }
@@ -46,12 +42,17 @@ namespace Lunar.Extensions
                 throw new Win32Exception();
             }
 
-            return isWow64Process ? Architecture.X86 : Architecture.X64;
+            if (isWow64Process)
+            {
+                return Architecture.X86;
+            }
+
+            return Architecture.X64;
         }
 
-        internal static ProtectionType ProtectBuffer(this Process process, IntPtr bufferAddress, int bufferSize, ProtectionType protectionType)
+        internal static ProtectionType ProtectBuffer(this Process process, IntPtr address, int size, ProtectionType protectionType)
         {
-            if (!Kernel32.VirtualProtectEx(process.SafeHandle, bufferAddress, bufferSize, protectionType, out var oldProtectionType))
+            if (!Kernel32.VirtualProtectEx(process.SafeHandle, address, size, protectionType, out var oldProtectionType))
             {
                 throw new Win32Exception();
             }
@@ -59,51 +60,39 @@ namespace Lunar.Extensions
             return oldProtectionType;
         }
 
-        internal static T QueryInformation<T>(this Process process, ProcessInformationClass informationClass) where T : unmanaged
+        internal static Span<T> ReadBuffer<T>(this Process process, IntPtr address, int size) where T : unmanaged
         {
-            Span<byte> informationBlock = stackalloc byte[Unsafe.SizeOf<T>()];
+            var buffer = new byte[size * Unsafe.SizeOf<T>()];
 
-            var ntStatus = Ntdll.NtQueryInformationProcess(process.SafeHandle, informationClass, out informationBlock[0], informationBlock.Length, out _);
-
-            if (ntStatus != NtStatus.Success)
-            {
-                throw new Win32Exception(Ntdll.RtlNtStatusToDosError(ntStatus));
-            }
-
-            return MemoryMarshal.Read<T>(informationBlock);
-        }
-
-        internal static Span<T> ReadArray<T>(this Process process, IntPtr arrayAddress, int arraySize) where T : unmanaged
-        {
-            var arrayBlock = new Span<byte>(new byte[arraySize * Unsafe.SizeOf<T>()]);
-
-            if (!Kernel32.ReadProcessMemory(process.SafeHandle, arrayAddress, out arrayBlock[0], arrayBlock.Length, out _))
+            if (!Kernel32.ReadProcessMemory(process.SafeHandle, address, out buffer[0], buffer.Length, out _))
             {
                 throw new Win32Exception();
             }
 
-            return MemoryMarshal.Cast<byte, T>(arrayBlock);
+            return MemoryMarshal.Cast<byte, T>(buffer);
         }
 
-        internal static T ReadStructure<T>(this Process process, IntPtr structureAddress) where T : unmanaged
+        internal static T ReadStructure<T>(this Process process, IntPtr address) where T : unmanaged
         {
-            Span<byte> structureBlock = stackalloc byte[Unsafe.SizeOf<T>()];
+            Span<byte> buffer = stackalloc byte[Unsafe.SizeOf<T>()];
 
-            if (!Kernel32.ReadProcessMemory(process.SafeHandle, structureAddress, out structureBlock[0], structureBlock.Length, out _))
+            if (!Kernel32.ReadProcessMemory(process.SafeHandle, address, out buffer[0], buffer.Length, out _))
             {
                 throw new Win32Exception();
             }
 
-            return MemoryMarshal.Read<T>(structureBlock);
+            return MemoryMarshal.Read<T>(buffer);
         }
 
-        internal static void WriteArray<T>(this Process process, IntPtr writeAddress, Span<T> array) where T : unmanaged
+        internal static void WriteBuffer<T>(this Process process, IntPtr address, Span<T> buffer) where T : unmanaged
         {
-            var oldProtectionType = process.ProtectBuffer(writeAddress, array.Length * Unsafe.SizeOf<T>(), ProtectionType.ReadWrite);
+            var bufferByteSize = buffer.Length * Unsafe.SizeOf<T>();
+
+            var oldProtectionType = process.ProtectBuffer(address, bufferByteSize, ProtectionType.ReadWrite);
 
             try
             {
-                if (!Kernel32.WriteProcessMemory(process.SafeHandle, writeAddress, in MemoryMarshal.AsBytes(array)[0], array.Length * Unsafe.SizeOf<T>(), out _))
+                if (!Kernel32.WriteProcessMemory(process.SafeHandle, address, in MemoryMarshal.AsBytes(buffer)[0], bufferByteSize, out _))
                 {
                     throw new Win32Exception();
                 }
@@ -111,21 +100,21 @@ namespace Lunar.Extensions
 
             finally
             {
-                process.ProtectBuffer(writeAddress, array.Length * Unsafe.SizeOf<T>(), oldProtectionType);
+                process.ProtectBuffer(address, bufferByteSize, oldProtectionType);
             }
         }
 
-        internal static void WriteStructure<T>(this Process process, IntPtr writeAddress, T structure) where T : unmanaged
+        internal static void WriteStructure<T>(this Process process, IntPtr address, T structure) where T : unmanaged
         {
-            Span<byte> structureBlock = stackalloc byte[Unsafe.SizeOf<T>()];
+            Span<byte> buffer = stackalloc byte[Unsafe.SizeOf<T>()];
 
-            MemoryMarshal.Write(structureBlock, ref structure);
+            MemoryMarshal.Write(buffer, ref structure);
 
-            var oldProtectionType = process.ProtectBuffer(writeAddress, structureBlock.Length, ProtectionType.ReadWrite);
+            var oldProtectionType = process.ProtectBuffer(address, buffer.Length, ProtectionType.ReadWrite);
 
             try
             {
-                if (!Kernel32.WriteProcessMemory(process.SafeHandle, writeAddress, in structureBlock[0], structureBlock.Length, out _))
+                if (!Kernel32.WriteProcessMemory(process.SafeHandle, address, in buffer[0], buffer.Length, out _))
                 {
                     throw new Win32Exception();
                 }
@@ -133,7 +122,7 @@ namespace Lunar.Extensions
 
             finally
             {
-                process.ProtectBuffer(writeAddress, structureBlock.Length, oldProtectionType);
+                process.ProtectBuffer(address, buffer.Length, oldProtectionType);
             }
         }
     }

@@ -5,7 +5,7 @@ static int TlsValue = 0;
 
 void __stdcall TlsCallBack(void* moduleHandle, unsigned long reason, void* reserved)
 {
-    switch (reason) 
+    switch (reason)
     {
         case DLL_PROCESS_ATTACH:
         {
@@ -42,7 +42,7 @@ bool __stdcall DllMain(void* moduleHandle, unsigned long reason, void* reserved)
     {
         case DLL_PROCESS_ATTACH:
         {
-            if (TlsValue != 1) 
+            if (TlsValue != 1)
             {
                 throw std::exception();
             }
@@ -62,4 +62,3 @@ bool __stdcall DllMain(void* moduleHandle, unsigned long reason, void* reserved)
 
     return true;
 }
-

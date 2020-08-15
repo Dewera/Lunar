@@ -8,25 +8,25 @@ namespace Lunar.PortableExecutable
     {
         protected PEHeaders Headers { get; }
 
-        protected Memory<byte> ImageBlock { get; }
+        protected Memory<byte> ImageBuffer { get; }
 
-        protected DataDirectory(PEHeaders headers, Memory<byte> imageBlock)
+        protected DataDirectory(PEHeaders headers, Memory<byte> imageBuffer)
         {
             Headers = headers;
 
-            ImageBlock = imageBlock;
+            ImageBuffer = imageBuffer;
         }
 
         protected string ReadString(int offset)
         {
             var stringLength = 0;
 
-            while (ImageBlock.Span[offset + stringLength] != byte.MinValue)
+            while (ImageBuffer.Span[offset + stringLength] != byte.MinValue)
             {
                 stringLength += 1;
             }
 
-            return Encoding.UTF8.GetString(ImageBlock.Span.Slice(offset, stringLength));
+            return Encoding.UTF8.GetString(ImageBuffer.Span.Slice(offset, stringLength));
         }
 
         protected int RvaToOffset(int rva)
@@ -38,7 +38,7 @@ namespace Lunar.PortableExecutable
 
         protected int VaToRva(int va)
         {
-            return (int) (va - (int) Headers.PEHeader.ImageBase);
+            return va - (int) Headers.PEHeader.ImageBase;
         }
 
         protected int VaToRva(long va)

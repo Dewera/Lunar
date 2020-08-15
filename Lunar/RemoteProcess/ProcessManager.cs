@@ -33,29 +33,29 @@ namespace Lunar.RemoteProcess
             Refresh();
         }
 
-        internal void CallRoutine(IntPtr functionAddress, params dynamic[] parameters)
+        internal void CallRoutine(IntPtr routineAddress, params dynamic[] parameters)
         {
-            var routineDescriptor = new RoutineDescriptor(functionAddress, parameters, IntPtr.Zero);
+            var routineDescriptor = new RoutineDescriptor(routineAddress, parameters, IntPtr.Zero);
 
             CallRoutine(routineDescriptor);
         }
 
-        internal TStructure CallRoutine<TStructure>(IntPtr functionAddress, params dynamic[] parameters) where TStructure : unmanaged
+        internal T CallRoutine<T>(IntPtr routineAddress, params dynamic[] parameters) where T : unmanaged
         {
-            var returnBuffer = Process.AllocateBuffer(Unsafe.SizeOf<TStructure>());
+            var returnBufferAddress = Process.AllocateBuffer(Unsafe.SizeOf<T>());
 
-            var routineDescriptor = new RoutineDescriptor(functionAddress, parameters, returnBuffer);
+            var routineDescriptor = new RoutineDescriptor(routineAddress, parameters, returnBufferAddress);
 
             try
             {
                 CallRoutine(routineDescriptor);
 
-                return Process.ReadStructure<TStructure>(returnBuffer);
+                return Process.ReadStructure<T>(returnBufferAddress);
             }
 
             finally
             {
-                Process.FreeBuffer(returnBuffer);
+                Process.FreeBuffer(returnBufferAddress);
             }
         }
 
@@ -113,28 +113,39 @@ namespace Lunar.RemoteProcess
 
         internal string ResolveModuleName(string moduleName)
         {
-            return moduleName.StartsWith("api-ms") ? _pebAccessor.ResolveApiSetName(moduleName) : moduleName;
+            if (moduleName.StartsWith("api-ms"))
+            {
+                return _pebAccessor.ResolveApiSetName(moduleName);
+            }
+
+            return moduleName;
         }
 
         private void CallRoutine(RoutineDescriptor routineDescriptor)
         {
             // Write the shellcode used to perform the function call into a buffer
 
-            var shellcodeBlock = Process.GetArchitecture() == Architecture.X86 ? RoutineAssembler.AssembleRoutine32(routineDescriptor) : RoutineAssembler.AssembleRoutine64(routineDescriptor);
+            Span<byte> shellcodeBuffer;
 
-            var shellcodeBuffer = Process.AllocateBuffer(shellcodeBlock.Length, true);
+            if (Process.GetArchitecture() == Architecture.X86)
+            {
+                shellcodeBuffer = RoutineAssembler.AssembleRoutine32(routineDescriptor);
+            }
+
+            else
+            {
+                shellcodeBuffer = RoutineAssembler.AssembleRoutine64(routineDescriptor);
+            }
+
+            var shellcodeBufferAddress = Process.AllocateBuffer(shellcodeBuffer.Length, true);
 
             try
             {
-                Process.WriteArray(shellcodeBuffer, shellcodeBlock);
+                Process.WriteBuffer(shellcodeBufferAddress, shellcodeBuffer);
 
                 // Create a thread to execute the shellcode
 
-                const AccessMask accessMask = AccessMask.SpecificRightsAll | AccessMask.StandardRightsAll;
-
-                const ThreadCreationFlags creationFlags = ThreadCreationFlags.HideFromDebugger | ThreadCreationFlags.SkipThreadAttach;
-
-                var ntStatus = Ntdll.NtCreateThreadEx(out var threadHandle, accessMask, IntPtr.Zero, Process.SafeHandle, shellcodeBuffer, IntPtr.Zero, creationFlags, IntPtr.Zero, 0, 0, IntPtr.Zero);
+                var ntStatus = Ntdll.NtCreateThreadEx(out var threadHandle, AccessMask.SpecificRightsAll | AccessMask.StandardRightsAll, IntPtr.Zero, Process.SafeHandle, shellcodeBufferAddress, IntPtr.Zero, ThreadCreationFlags.HideFromDebugger | ThreadCreationFlags.SkipThreadAttach, IntPtr.Zero, 0, 0, IntPtr.Zero);
 
                 using (threadHandle)
                 {
@@ -152,7 +163,7 @@ namespace Lunar.RemoteProcess
 
             finally
             {
-                Process.FreeBuffer(shellcodeBuffer);
+                Process.FreeBuffer(shellcodeBufferAddress);
             }
         }
     }

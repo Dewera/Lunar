@@ -11,7 +11,7 @@ namespace Lunar.PortableExecutable.DataDirectories
     {
         internal IEnumerable<ExportedFunction> ExportedFunctions { get; }
 
-        internal ExportDirectory(PEHeaders headers, Memory<byte> imageBlock) : base(headers, imageBlock)
+        internal ExportDirectory(PEHeaders headers, Memory<byte> imageBuffer) : base(headers, imageBuffer)
         {
             ExportedFunctions = ReadExportedFunctions();
         }
@@ -25,7 +25,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
             // Read the export directory
 
-            var exportDirectory = MemoryMarshal.Read<ImageExportDirectory>(ImageBlock.Span.Slice(exportDirectoryOffset));
+            var exportDirectory = MemoryMarshal.Read<ImageExportDirectory>(ImageBuffer.Span.Slice(exportDirectoryOffset));
 
             var functionNamesRvasBaseOffset = RvaToOffset(exportDirectory.AddressOfNames);
 
@@ -35,29 +35,29 @@ namespace Lunar.PortableExecutable.DataDirectories
 
             for (var functionIndex = 0; functionIndex < exportDirectory.NumberOfNames; functionIndex += 1)
             {
-                // Read the name of the exported function
+                // Read the name of the function
 
                 var functionNameOffsetRvaOffset = functionNamesRvasBaseOffset + functionIndex * sizeof(int);
 
-                var functionNameOffsetRva = MemoryMarshal.Read<int>(ImageBlock.Span.Slice(functionNameOffsetRvaOffset));
+                var functionNameOffsetRva = MemoryMarshal.Read<int>(ImageBuffer.Span.Slice(functionNameOffsetRvaOffset));
 
                 var functionNameOffset = RvaToOffset(functionNameOffsetRva);
 
                 var functionName = ReadString(functionNameOffset);
 
-                // Read the ordinal of the exported function
+                // Read the ordinal of the function
 
                 var functionOrdinalOffset = functionOrdinalsBaseOffset + functionIndex * sizeof(short);
 
-                var functionOrdinal = MemoryMarshal.Read<short>(ImageBlock.Span.Slice(functionOrdinalOffset));
+                var functionOrdinal = MemoryMarshal.Read<short>(ImageBuffer.Span.Slice(functionOrdinalOffset));
 
                 // Read the relative virtual address of the function
 
                 var functionRvaOffset = functionRvasBaseOffset + functionOrdinal * sizeof(int);
 
-                var functionRva = MemoryMarshal.Read<int>(ImageBlock.Span.Slice(functionRvaOffset));
+                var functionRva = MemoryMarshal.Read<int>(ImageBuffer.Span.Slice(functionRvaOffset));
 
-                // Check if the exported function is forwarded
+                // Check if the function is forwarded
 
                 var exportDirectoryStartOffset = Headers.PEHeader.ExportTableDirectory.RelativeVirtualAddress;
 

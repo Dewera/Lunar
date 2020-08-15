@@ -10,15 +10,15 @@ namespace Lunar.Assembler.Structures
 
         internal List<dynamic> Parameters { get; }
 
-        internal IntPtr ReturnBuffer { get; }
+        internal IntPtr ReturnValueBuffer { get; }
 
-        internal RoutineDescriptor(IntPtr address, IEnumerable<dynamic> parameters, IntPtr returnBuffer)
+        internal RoutineDescriptor(IntPtr address, IEnumerable<dynamic> parameters, IntPtr returnValueBuffer)
         {
             Address = address;
 
             Parameters = parameters.ToList();
 
-            ReturnBuffer = returnBuffer;
+            ReturnValueBuffer = returnValueBuffer;
         }
     }
 }

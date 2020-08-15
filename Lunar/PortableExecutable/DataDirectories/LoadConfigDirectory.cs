@@ -12,7 +12,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
         internal SehTable? SehTable { get; }
 
-        internal LoadConfigDirectory(PEHeaders headers, Memory<byte> imageBlock) : base(headers, imageBlock)
+        internal LoadConfigDirectory(PEHeaders headers, Memory<byte> imageBuffer) : base(headers, imageBuffer)
         {
             SecurityCookie = ReadSecurityCookie();
 
@@ -26,27 +26,37 @@ namespace Lunar.PortableExecutable.DataDirectories
                 return null;
             }
 
-            int securityCookieRva;
-
             if (Headers.PEHeader.Magic == PEMagic.PE32)
             {
                 // Read the load config directory
 
-                var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory32>(ImageBlock.Span.Slice(loadConfigDirectoryOffset));
+                var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory32>(ImageBuffer.Span.Slice(loadConfigDirectoryOffset));
 
-                securityCookieRva = loadConfigDirectory.SecurityCookie == 0 ? 0 : VaToRva(loadConfigDirectory.SecurityCookie);
+                if (loadConfigDirectory.SecurityCookie == 0)
+                {
+                    return null;
+                }
+
+                var cookieRva = VaToRva(loadConfigDirectory.SecurityCookie);
+
+                return new SecurityCookie(cookieRva);
             }
 
             else
             {
                 // Read the load config directory
 
-                var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory64>(ImageBlock.Span.Slice(loadConfigDirectoryOffset));
+                var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory64>(ImageBuffer.Span.Slice(loadConfigDirectoryOffset));
 
-                securityCookieRva = loadConfigDirectory.SecurityCookie == 0 ? 0 : VaToRva(loadConfigDirectory.SecurityCookie);
+                if (loadConfigDirectory.SecurityCookie == 0)
+                {
+                    return null;
+                }
+
+                var cookieRva = VaToRva(loadConfigDirectory.SecurityCookie);
+
+                return new SecurityCookie(cookieRva);
             }
-
-            return new SecurityCookie(securityCookieRva);
         }
 
         private SehTable? ReadSehTable()
@@ -58,13 +68,16 @@ namespace Lunar.PortableExecutable.DataDirectories
 
             // Read the load config directory
 
-            var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory32>(ImageBlock.Span.Slice(loadConfigDirectoryOffset));
+            var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory32>(ImageBuffer.Span.Slice(loadConfigDirectoryOffset));
 
-            var handlerCount = loadConfigDirectory.SEHandlerCount == 0 ? -1 : loadConfigDirectory.SEHandlerCount;
+            if (loadConfigDirectory.SEHandlerCount == 0 || loadConfigDirectory.SEHandlerTable == 0)
+            {
+                return new SehTable(-1, -1);
+            }
 
-            var tableRva = loadConfigDirectory.SEHandlerTable == 0 ? -1 : VaToRva(loadConfigDirectory.SEHandlerTable);
+            var tableRva = VaToRva(loadConfigDirectory.SEHandlerTable);
 
-            return new SehTable(handlerCount, tableRva);
+            return new SehTable(loadConfigDirectory.SEHandlerCount, tableRva);
         }
     }
 }

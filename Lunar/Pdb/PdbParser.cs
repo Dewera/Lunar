@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -12,7 +13,6 @@ using Lunar.Native.Enumerations;
 using Lunar.Native.PInvoke;
 using Lunar.Native.Structures;
 using Lunar.Pdb.Structures;
-using Lunar.PortableExecutable;
 
 namespace Lunar.Pdb
 {
@@ -27,14 +27,20 @@ namespace Lunar.Pdb
             _symbols = ParseSymbols(pdbFilePath, symbolNames);
         }
 
-        internal Symbol GetSymbol(string symbolName)
+        internal int GetSymbolRva(string symbolName)
         {
-            return _symbols.First(symbol => symbol.Name.Equals(symbolName, StringComparison.OrdinalIgnoreCase));
+            return _symbols.First(symbol => symbol.Name.Equals(symbolName, StringComparison.OrdinalIgnoreCase)).Rva;
         }
 
         private static async Task<string> DownloadPdb(string dllFilePath)
         {
-            var peImage = new PeImage(File.ReadAllBytes(dllFilePath));
+            // Read the PDB data
+
+            using var peReader = new PEReader(new MemoryStream(File.ReadAllBytes(dllFilePath)));
+
+            var codeViewEntry = peReader.ReadDebugDirectory().First(entry => entry.Type == DebugDirectoryEntryType.CodeView);
+
+            var pdbData = peReader.ReadCodeViewDebugDirectoryData(codeViewEntry);
 
             // Create a directory on disk to cache the PDB
 
@@ -44,11 +50,11 @@ namespace Lunar.Pdb
 
             // Check if the correct version of the PDB is already cached
 
-            var pdbFilePath = Path.Combine(directoryInfo.FullName, $"{peImage.PdbData.Path}-{peImage.PdbData.Guid:N}.pdb");
+            var pdbFilePath = Path.Combine(directoryInfo.FullName, $"{pdbData.Path}-{pdbData.Guid:N}.pdb");
 
             foreach (var file in directoryInfo.EnumerateFiles())
             {
-                if (!file.Name.StartsWith(peImage.PdbData.Path))
+                if (!file.Name.StartsWith(pdbData.Path))
                 {
                     continue;
                 }
@@ -77,10 +83,10 @@ namespace Lunar.Pdb
             {
                 var progress = eventArgs.ProgressPercentage / 2;
 
-                Console.Write($"\rDownloading required files [{peImage.PdbData.Path}] - [{new string('=', progress)}{new string(' ', 50 - progress)}] - {eventArgs.ProgressPercentage}%");
+                Console.Write($"\rDownloading required files [{pdbData.Path}] - [{new string('=', progress)}{new string(' ', 50 - progress)}] - {eventArgs.ProgressPercentage}%");
             };
 
-            var pdbUri = new Uri($"https://msdl.microsoft.com/download/symbols/{peImage.PdbData.Path}/{peImage.PdbData.Guid:N}{peImage.PdbData.Age}/{peImage.PdbData.Path}");
+            var pdbUri = new Uri($"https://msdl.microsoft.com/download/symbols/{pdbData.Path}/{pdbData.Guid:N}{pdbData.Age}/{pdbData.Path}");
 
             await webClient.DownloadFileTaskAsync(pdbUri, pdbFilePath);
 
@@ -102,9 +108,9 @@ namespace Lunar.Pdb
 
             try
             {
-                // Load the symbol table for the PDB into the symbol handler
-
                 const int pseudoDllBaseAddress = 0x1000;
+
+                // Load the symbol table for the PDB into the symbol handler
 
                 var pdbSize = new FileInfo(pdbFilePath).Length;
 
@@ -115,37 +121,32 @@ namespace Lunar.Pdb
                     throw new Win32Exception();
                 }
 
-                var symbolInformationBlockSize = (Unsafe.SizeOf<SymbolInfo>() + Constants.MaxSymbolName * sizeof(char) + sizeof(long) - 1) / sizeof(long);
-
-                int GetSymbolRva(string symbolName)
+                foreach (var symbolName in symbolNames)
                 {
-                    // Initialise a block to receive the symbol information
+                    // Initialise a buffer to receive the symbol information
 
-                    Span<byte> symbolInformationBlock = stackalloc byte[symbolInformationBlockSize];
+                    var symbolInformationBufferSize = (Unsafe.SizeOf<SymbolInfo>() + Constants.MaxSymbolName * sizeof(char) + sizeof(long) - 1) / sizeof(long);
+
+                    Span<byte> symbolInformationBuffer = stackalloc byte[symbolInformationBufferSize];
 
                     var symbolInformation = new SymbolInfo(Constants.MaxSymbolName);
 
-                    MemoryMarshal.Write(symbolInformationBlock, ref symbolInformation);
+                    MemoryMarshal.Write(symbolInformationBuffer, ref symbolInformation);
 
                     // Retrieve the symbol information
 
-                    if (!Dbghelp.SymFromName(currentProcessHandle, symbolName, out symbolInformationBlock[0]))
+                    if (!Dbghelp.SymFromName(currentProcessHandle, symbolName, out symbolInformationBuffer[0]))
                     {
                         throw new Win32Exception();
                     }
 
                     // Calculate the relative virtual address of the symbol
 
-                    symbolInformation = MemoryMarshal.Read<SymbolInfo>(symbolInformationBlock);
+                    symbolInformation = MemoryMarshal.Read<SymbolInfo>(symbolInformationBuffer);
 
-                    return (int) (symbolInformation.Address - pseudoDllBaseAddress);
-                }
+                    var symbolRva = symbolInformation.Address - pseudoDllBaseAddress;
 
-                foreach (var symbolName in symbolNames)
-                {
-                    var symbolRva = GetSymbolRva(symbolName);
-
-                    yield return new Symbol(symbolName, symbolRva);
+                    yield return new Symbol(symbolName, (int) symbolRva);
                 }
             }
 

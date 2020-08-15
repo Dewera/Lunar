@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-using System.Linq;
 using System.Reflection.PortableExecutable;
 using Lunar.PortableExecutable.DataDirectories;
 
@@ -20,36 +19,25 @@ namespace Lunar.PortableExecutable
 
         internal LoadConfigDirectory LoadConfigDirectory { get; }
 
-        internal CodeViewDebugDirectoryData PdbData { get; }
-
         internal TlsDirectory TlsDirectory { get; }
 
-        internal PeImage(Memory<byte> imageBytes)
+        internal PeImage(Memory<byte> imageBuffer)
         {
-            using var peReader = new PEReader(new MemoryStream(imageBytes.ToArray()));
+            using var peReader = new PEReader(new MemoryStream(imageBuffer.ToArray()));
 
-            BaseRelocationDirectory = new BaseRelocationDirectory(peReader.PEHeaders, imageBytes);
+            BaseRelocationDirectory = new BaseRelocationDirectory(peReader.PEHeaders, imageBuffer);
 
-            DelayImportDirectory = new DelayImportDirectory(peReader.PEHeaders, imageBytes);
+            DelayImportDirectory = new DelayImportDirectory(peReader.PEHeaders, imageBuffer);
 
-            ExportDirectory = new ExportDirectory(peReader.PEHeaders, imageBytes);
+            ExportDirectory = new ExportDirectory(peReader.PEHeaders, imageBuffer);
 
             Headers = peReader.PEHeaders;
 
-            ImportDirectory = new ImportDirectory(peReader.PEHeaders, imageBytes);
+            ImportDirectory = new ImportDirectory(peReader.PEHeaders, imageBuffer);
 
-            LoadConfigDirectory = new LoadConfigDirectory(peReader.PEHeaders, imageBytes);
+            LoadConfigDirectory = new LoadConfigDirectory(peReader.PEHeaders, imageBuffer);
 
-            var debugDirectoryEntries = peReader.ReadDebugDirectory();
-
-            if (debugDirectoryEntries.Any(entry => entry.Type == DebugDirectoryEntryType.CodeView))
-            {
-                var codeViewEntry = debugDirectoryEntries.First(entry => entry.Type == DebugDirectoryEntryType.CodeView);
-
-                PdbData = peReader.ReadCodeViewDebugDirectoryData(codeViewEntry);
-            }
-
-            TlsDirectory = new TlsDirectory(peReader.PEHeaders, imageBytes);
+            TlsDirectory = new TlsDirectory(peReader.PEHeaders, imageBuffer);
 
             ValidatePeImage();
         }

@@ -11,12 +11,12 @@ namespace Lunar.PortableExecutable.DataDirectories
     {
         internal IEnumerable<TlsCallBack> TlsCallBacks { get; }
 
-        internal TlsDirectory(PEHeaders headers, Memory<byte> imageBlock) : base(headers, imageBlock)
+        internal TlsDirectory(PEHeaders headers, Memory<byte> imageBuffer) : base(headers, imageBuffer)
         {
-            TlsCallBacks = ReadTlsCallbacks();
+            TlsCallBacks = ReadTlsCallBacks();
         }
 
-        private IEnumerable<TlsCallBack> ReadTlsCallbacks()
+        private IEnumerable<TlsCallBack> ReadTlsCallBacks()
         {
             if (!Headers.TryGetDirectoryOffset(Headers.PEHeader.ThreadLocalStorageTableDirectory, out var tlsDirectoryOffset))
             {
@@ -27,31 +27,33 @@ namespace Lunar.PortableExecutable.DataDirectories
             {
                 // Read the TLS directory
 
-                var tlsDirectory = MemoryMarshal.Read<ImageTlsDirectory32>(ImageBlock.Span.Slice(tlsDirectoryOffset));
+                var tlsDirectory = MemoryMarshal.Read<ImageTlsDirectory32>(ImageBuffer.Span.Slice(tlsDirectoryOffset));
 
                 if (tlsDirectory.AddressOfCallBacks == 0)
                 {
                     yield break;
                 }
 
-                var currentCallbackVaOffset = RvaToOffset(VaToRva(tlsDirectory.AddressOfCallBacks));
+                var currentCallBackVaOffset = RvaToOffset(VaToRva(tlsDirectory.AddressOfCallBacks));
 
                 while (true)
                 {
-                    // Read the virtual address of the TLS callback
+                    // Read the virtual address of the callback
 
-                    var callbackVa = MemoryMarshal.Read<int>(ImageBlock.Span.Slice(currentCallbackVaOffset));
+                    var callBackVa = MemoryMarshal.Read<int>(ImageBuffer.Span.Slice(currentCallBackVaOffset));
 
-                    if (callbackVa == 0)
+                    if (callBackVa == 0)
                     {
                         break;
                     }
 
-                    var callbackRva = VaToRva(callbackVa);
+                    var callBackRva = VaToRva(callBackVa);
 
-                    yield return new TlsCallBack(callbackRva);
+                    yield return new TlsCallBack(callBackRva);
 
-                    currentCallbackVaOffset += sizeof(int);
+                    // Set the offset of the next callback virtual address
+
+                    currentCallBackVaOffset += sizeof(int);
                 }
             }
 
@@ -59,31 +61,33 @@ namespace Lunar.PortableExecutable.DataDirectories
             {
                 // Read the TLS directory
 
-                var tlsDirectory = MemoryMarshal.Read<ImageTlsDirectory64>(ImageBlock.Span.Slice(tlsDirectoryOffset));
+                var tlsDirectory = MemoryMarshal.Read<ImageTlsDirectory64>(ImageBuffer.Span.Slice(tlsDirectoryOffset));
 
                 if (tlsDirectory.AddressOfCallBacks == 0)
                 {
                     yield break;
                 }
 
-                var currentCallbackVaOffset = RvaToOffset(VaToRva(tlsDirectory.AddressOfCallBacks));
+                var currentCallBackVaOffset = RvaToOffset(VaToRva(tlsDirectory.AddressOfCallBacks));
 
                 while (true)
                 {
-                    // Read the virtual address of the TLS callback
+                    // Read the virtual address of the callback
 
-                    var callbackVa = MemoryMarshal.Read<long>(ImageBlock.Span.Slice(currentCallbackVaOffset));
+                    var callBackVa = MemoryMarshal.Read<long>(ImageBuffer.Span.Slice(currentCallBackVaOffset));
 
-                    if (callbackVa == 0)
+                    if (callBackVa == 0)
                     {
                         break;
                     }
 
-                    var callbackRva = VaToRva(callbackVa);
+                    var callBackRva = VaToRva(callBackVa);
 
-                    yield return new TlsCallBack(callbackRva);
+                    yield return new TlsCallBack(callBackRva);
 
-                    currentCallbackVaOffset += sizeof(long);
+                    // Set the offset of the next callback virtual address
+
+                    currentCallBackVaOffset += sizeof(long);
                 }
             }
         }

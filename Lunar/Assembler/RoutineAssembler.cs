@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using Lunar.Assembler.Structures;
 using Lunar.Extensions;
 
@@ -11,10 +12,8 @@ namespace Lunar.Assembler
         {
             var routineInstructions = new List<byte>();
 
-            for (var parameterIndex = routineDescriptor.Parameters.Count - 1; parameterIndex >= 0; parameterIndex -= 1)
+            foreach (var parameter in routineDescriptor.Parameters.Select(parameter => (int) parameter).Reverse())
             {
-                var parameter = (int) routineDescriptor.Parameters[parameterIndex];
-
                 if (parameter <= sbyte.MaxValue)
                 {
                     // push parameter
@@ -32,23 +31,23 @@ namespace Lunar.Assembler
                 }
             }
 
-            // mov eax, address
+            // mov eax, Address
 
             routineInstructions.Add(0xB8);
 
-            routineInstructions.AddRange(BitConverter.GetBytes(routineDescriptor.Address.ToInt32()));
+            routineInstructions.AddRange(BitConverter.GetBytes((int) routineDescriptor.Address));
 
             // call eax
 
             routineInstructions.AddRange(stackalloc byte[] {0xFF, 0xD0});
 
-            if (routineDescriptor.ReturnBuffer != IntPtr.Zero)
+            if (routineDescriptor.ReturnValueBuffer != IntPtr.Zero)
             {
-                // mov [returnBuffer], eax
+                // mov [ReturnValueBuffer], eax
 
                 routineInstructions.Add(0xA3);
 
-                routineInstructions.AddRange(BitConverter.GetBytes(routineDescriptor.ReturnBuffer.ToInt32()));
+                routineInstructions.AddRange(BitConverter.GetBytes((int) routineDescriptor.ReturnValueBuffer));
             }
 
             // xor eax, eax
@@ -70,10 +69,8 @@ namespace Lunar.Assembler
 
             routineInstructions.AddRange(stackalloc byte[] {0x48, 0x83, 0xEC, 0x28});
 
-            for (var parameterIndex = 0; parameterIndex < routineDescriptor.Parameters.Count; parameterIndex += 1)
+            foreach (var (parameter, parameterIndex) in routineDescriptor.Parameters.Select(parameter => (long) parameter).Select((parameter, parameterIndex) => (parameter, parameterIndex)))
             {
-                var parameter = (long) routineDescriptor.Parameters[parameterIndex];
-
                 switch (parameterIndex)
                 {
                     case 0:
@@ -198,23 +195,23 @@ namespace Lunar.Assembler
                 }
             }
 
-            // mov rax, address
+            // mov rax, Address
 
             routineInstructions.AddRange(stackalloc byte[] {0x48, 0xB8});
 
-            routineInstructions.AddRange(BitConverter.GetBytes(routineDescriptor.Address.ToInt64()));
+            routineInstructions.AddRange(BitConverter.GetBytes((long) routineDescriptor.Address));
 
             // call rax
 
             routineInstructions.AddRange(stackalloc byte[] {0xFF, 0xD0});
 
-            if (routineDescriptor.ReturnBuffer != IntPtr.Zero)
+            if (routineDescriptor.ReturnValueBuffer != IntPtr.Zero)
             {
-                // mov [returnBuffer], rax
+                // mov [ReturnValueBuffer], rax
 
                 routineInstructions.AddRange(stackalloc byte[] {0x48, 0xA3});
 
-                routineInstructions.AddRange(BitConverter.GetBytes(routineDescriptor.ReturnBuffer.ToInt64()));
+                routineInstructions.AddRange(BitConverter.GetBytes((long) routineDescriptor.ReturnValueBuffer));
             }
 
             // xor eax, eax
