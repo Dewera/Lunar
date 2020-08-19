@@ -9,13 +9,21 @@ jobs:
     steps:
       - uses: actions/checkout@master
       - uses: actions/setup-dotnet@master
+
+      - name: Build Solution
+        run: dotnet build --configuration Release
+      
+      - name: Run Tests
+        run: dotnet test
+      
+      - name: Create Package
+        run: dotnet pack Lunar --configuration Release
+      
+      - uses: actions/setup-dotnet@master
         with:
             source-url: https://nuget.pkg.github.com/${{github.actor}}
         env:
             NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
-      - name: Build Library
-        run: dotnet build Lunar --configuration Release
-      - name: Create Package
-        run: dotnet pack Lunar --configuration Release
+
       - name: Publish Package
         run: dotnet nuget push 'Lunar\bin\Release\*.nupkg' --skip-duplicate
