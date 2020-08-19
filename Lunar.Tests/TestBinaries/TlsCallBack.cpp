@@ -24,15 +24,15 @@ void __stdcall TlsCallBack(void* moduleHandle, unsigned long reason, void* reser
 
 #ifdef _WIN64
     #pragma comment (linker, "/INCLUDE:_tls_used")
-    #pragma comment (linker, "/INCLUDE:tlsCallbackAddress")
+    #pragma comment (linker, "/INCLUDE:tlsCallBackAddress")
     #pragma const_seg(".CRT$XLA")
-    extern "C" const PIMAGE_TLS_CALLBACK tlsCallbackAddress = TlsCallBack;
+    extern "C" const PIMAGE_TLS_CALLBACK tlsCallBackAddress = TlsCallBack;
     #pragma const_seg()
 #else
     #pragma comment (linker, "/INCLUDE:__tls_used")
-    #pragma comment (linker, "/INCLUDE:_tlsCallbackAddress")
+    #pragma comment (linker, "/INCLUDE:_tlsCallBackAddress")
     #pragma data_seg(".CRT$XLA")
-    extern "C" PIMAGE_TLS_CALLBACK tlsCallbackAddress = TlsCallBack;
+    extern "C" PIMAGE_TLS_CALLBACK tlsCallBackAddress = TlsCallBack;
     #pragma data_seg()
 #endif
 

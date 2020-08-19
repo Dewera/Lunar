@@ -13,4 +13,3 @@ bool __stdcall DllMain(void* moduleHandle, unsigned long reason, void* reserved)
 
     return true;
 }
-
