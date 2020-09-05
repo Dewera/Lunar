@@ -18,13 +18,13 @@ A lightweight native DLL mapping library that supports mapping directly from mem
 
 ### Caveats
 
-- The presence of a PDB for ntdll.dll is needed and, hence, will be automatically downloaded and cached on disk by the library
+- A PDB for ntdll.dll is downloaded and cached on disk by the library
 
 ---
 
 ### Getting started
 
-The example below demonstrates a basic implementation of the library that maps a DLL from disk without its headers
+The example below demonstrates a basic implementation of the library
 
 ```c#
 var process = Process.GetProcessesByName("")[0];
@@ -42,61 +42,75 @@ mapper.MapLibrary();
 
 ### LibraryMapper Class
 
-#### Constructors
+Provides the functionality to map a DLL from disk or memory into a process
+
+```c#
+public sealed class LibraryMapper
+```
+
+### Constructors
+
+Provides the functionality to map a DLL from memory into a process
 
 ```c#
 LibraryMapper(Process, Memory<byte>, MappingFlags)
 ```
-Provides the functionality to map a DLL from memory into a process
+
+Provides the functionality to map a DLL from disk into a process
 
 ```c#
 LibraryMapper(Process, string, MappingFlags)
 ```
 
-Provides the functionality to map a DLL from disk into a process
+### Properties
 
-#### Properties
+The base address of the DLL in the process after it has been mapped
 
 ```c#
 DllBaseAddress
 ```
 
-The base address of the DLL in the process after it has been mapped
+### Methods
 
-#### Methods
+Maps the DLL into the process
 
 ```c#
 MapLibrary()
 ```
 
-Maps the DLL into the process
+Unmaps the DLL from the process
 
 ```c#
 UnmapLibrary()
 ```
 
-Unmaps the DLL from the process
-
 ---
 
 ### MappingFlags Enum
 
-#### Fields
+Defines actions that the mapper should take during mapping
+
+```c#
+[Flags]
+public enum MappingFlags
+```
+
+### Fields
+
+Default flag
 
 ```c#
 MappingsFlags.None
 ```
 
-Default flag
+Specifies that the header region of the DLL should not be mapped
 
 ```c#
 MappingsFlags.DiscardHeaders 
 ```
 
-Specifies that the header region of the DLL should not be mapped
+Specifies that TLS callbacks and DllMain should not be called
 
 ```c#
 MappingsFlags.SkipInitialisationRoutines
 ```
-
-Specifies that TLS callbacks and DllMain should not be called
