@@ -31,64 +31,27 @@ namespace Lunar.Tests
             _process.Dispose();
         }
 
-        [Fact]
-        public void TestMapBasic()
+        [Theory]
+        [InlineData("Basic.dll")]
+        [InlineData("Exception.dll")]
+        [InlineData("TlsCallBack.dll")]
+        public void TestMap(string dllName)
         {
-            var libraryMapper = new LibraryMapper(_process, Path.Combine(_testBinaryDirectory, "Basic.dll"));
+            var libraryMapper = new LibraryMapper(_process, Path.Combine(_testBinaryDirectory, dllName));
 
             libraryMapper.MapLibrary();
 
             Assert.NotEqual(libraryMapper.DllBaseAddress, IntPtr.Zero);
         }
 
-        [Fact]
-        public void TestMapException()
+        [Theory]
+        [InlineData("Basic.dll")]
+        [InlineData("Exception.dll")]
+        [InlineData("TlsCallBack.dll")]
+
+        public void TestUnmap(string dllName)
         {
-            var libraryMapper = new LibraryMapper(_process, Path.Combine(_testBinaryDirectory, "Exception.dll"));
-
-            libraryMapper.MapLibrary();
-
-            Assert.NotEqual(libraryMapper.DllBaseAddress, IntPtr.Zero);
-        }
-
-        [Fact]
-        public void TestMapTlsCallBack()
-        {
-            var libraryMapper = new LibraryMapper(_process, Path.Combine(_testBinaryDirectory, "TlsCallBack.dll"));
-
-            libraryMapper.MapLibrary();
-
-            Assert.NotEqual(libraryMapper.DllBaseAddress, IntPtr.Zero);
-        }
-
-        [Fact]
-        public void TestUnmapBasic()
-        {
-            var libraryMapper = new LibraryMapper(_process, Path.Combine(_testBinaryDirectory, "Basic.dll"));
-
-            libraryMapper.MapLibrary();
-
-            libraryMapper.UnmapLibrary();
-
-            Assert.Equal(libraryMapper.DllBaseAddress, IntPtr.Zero);
-        }
-
-        [Fact]
-        public void TestUnmapException()
-        {
-            var libraryMapper = new LibraryMapper(_process, Path.Combine(_testBinaryDirectory, "Exception.dll"));
-
-            libraryMapper.MapLibrary();
-
-            libraryMapper.UnmapLibrary();
-
-            Assert.Equal(libraryMapper.DllBaseAddress, IntPtr.Zero);
-        }
-
-        [Fact]
-        public void TestUnmapTlsCallBack()
-        {
-            var libraryMapper = new LibraryMapper(_process, Path.Combine(_testBinaryDirectory, "TlsCallBack.dll"));
+            var libraryMapper = new LibraryMapper(_process, Path.Combine(_testBinaryDirectory, dllName));
 
             libraryMapper.MapLibrary();
 
