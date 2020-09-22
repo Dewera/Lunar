@@ -1,4 +1,3 @@
-#include <stdexcept>
 #include <Windows.h>
 
 static int TlsValue = 0;
@@ -22,17 +21,22 @@ void __stdcall TlsCallBack(void* moduleHandle, unsigned long reason, void* reser
     }
 }
 
-#ifdef _WIN64
-    #pragma comment (linker, "/INCLUDE:_tls_used")
-    #pragma comment (linker, "/INCLUDE:tlsCallBackAddress")
-    #pragma const_seg(".CRT$XLA")
-    extern "C" const PIMAGE_TLS_CALLBACK tlsCallBackAddress = TlsCallBack;
-    #pragma const_seg()
-#else
+#ifdef _M_AMD64
+	#pragma comment (linker, "/INCLUDE:_tls_used")
+	#pragma comment (linker, "/INCLUDE:callback")
+
+	#pragma const_seg(".CRT$XLA")
+	extern "C" const PIMAGE_TLS_CALLBACK callback = TlsCallBack;
+	#pragma const_seg()
+
+#endif
+
+#ifdef _M_IX86
     #pragma comment (linker, "/INCLUDE:__tls_used")
-    #pragma comment (linker, "/INCLUDE:_tlsCallBackAddress")
+    #pragma comment (linker, "/INCLUDE:_callback")
+	
     #pragma data_seg(".CRT$XLA")
-    extern "C" PIMAGE_TLS_CALLBACK tlsCallBackAddress = TlsCallBack;
+    extern "C" PIMAGE_TLS_CALLBACK callback = TlsCallBack;
     #pragma data_seg()
 #endif
 
@@ -44,7 +48,7 @@ bool __stdcall DllMain(void* moduleHandle, unsigned long reason, void* reserved)
         {
             if (TlsValue != 1)
             {
-                throw std::exception();
+                return false;
             }
 
             break;
@@ -53,7 +57,7 @@ bool __stdcall DllMain(void* moduleHandle, unsigned long reason, void* reserved)
         {
             if (TlsValue != 2)
             {
-                throw std::exception();
+                return false;
             }
 
             break;

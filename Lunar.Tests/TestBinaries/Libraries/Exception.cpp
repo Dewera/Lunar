@@ -1,11 +1,6 @@
 #include <stdexcept>
 #include <Windows.h>
 
-void ThrowException()
-{
-    throw std::exception();
-}
-
 bool __stdcall DllMain(void* moduleHandle, unsigned long reason, void* reserved)
 {
     switch (reason)
@@ -15,15 +10,13 @@ bool __stdcall DllMain(void* moduleHandle, unsigned long reason, void* reserved)
         {
             try
             {
-                ThrowException();
+                throw std::exception();
             }
 
             catch (...)
             {
                 // Ignore
             }
-
-            break;
         }
     }
 

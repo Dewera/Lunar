@@ -15,9 +15,9 @@ namespace Lunar.Tests
 
         public X64Tests()
         {
-            _testBinaryDirectory = Path.GetFullPath(@"..\..\..\TestBinaries\x64");
+            _testBinaryDirectory = Path.GetFullPath(@"..\..\..\TestBinaries\bin\x64\Release");
 
-            _process = new Process {StartInfo = {FileName = Path.Combine(_testBinaryDirectory, "Executable.exe"), UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden}};
+            _process = new Process {StartInfo = {FileName = Path.Combine(_testBinaryDirectory, "Target.exe"), UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden}};
 
             _process.Start();
 

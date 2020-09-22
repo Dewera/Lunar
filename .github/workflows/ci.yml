@@ -1,6 +1,10 @@
 name: Continuous Integration
 
-on: [push]
+on:
+    push:
+        branches: [master]
+    pull_request:
+        branches: [master]
 
 jobs:
   pipeline:
@@ -13,6 +17,16 @@ jobs:
       - name: Build Solution
         run: dotnet build --configuration Release
       
+      - name: Create Test Binaries
+        working-directory: Lunar.Tests\TestBinaries
+        run: |
+             mkdir bin\x86
+             mkdir bin\x64
+             cmake -A Win32 -B bin\x86
+             cmake -A x64 -B bin\x64
+             cmake --build bin\x86 --config Release
+             cmake --build bin\x64 --config Release
+        
       - name: Run Tests
         run: dotnet test
       

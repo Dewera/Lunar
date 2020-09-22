@@ -3,7 +3,7 @@
 
 int main()
 {
-    std::string string;
+    auto string = std::string();
 
     std::getline(std::cin, string);
 }

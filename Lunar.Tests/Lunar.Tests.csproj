@@ -20,7 +20,8 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="TestBinaries" />
+      <Folder Include="TestBinaries\Executables" />
+      <Folder Include="TestBinaries\Libraries" />
     </ItemGroup>
 
     <ItemGroup>
