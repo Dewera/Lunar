@@ -86,7 +86,7 @@ namespace Lunar.FileResolution
 
                 if (dependencyVersion.Build == 0 && dependencyVersion.Revision == 0)
                 {
-                    matchingDirectory = matchingDirectories.Where(directory => directory.Version.Major == dependencyVersion.Major && directory.Version.Minor == dependencyVersion.Minor).Max();
+                    matchingDirectory = matchingDirectories.Where(directory => directory.Version.Major == dependencyVersion.Major && directory.Version.Minor == dependencyVersion.Minor).OrderByDescending(directory => directory.Version).FirstOrDefault();
                 }
 
                 else
