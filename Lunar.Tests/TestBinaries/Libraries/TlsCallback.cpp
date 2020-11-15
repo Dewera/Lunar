@@ -2,7 +2,7 @@
 
 static int TlsValue = 0;
 
-void __stdcall TlsCallBack(void* moduleHandle, unsigned long reason, void* reserved)
+void __stdcall TlsCallback(void* moduleHandle, unsigned long reason, void* reserved)
 {
     switch (reason)
     {
@@ -26,7 +26,7 @@ void __stdcall TlsCallBack(void* moduleHandle, unsigned long reason, void* reser
 	#pragma comment (linker, "/INCLUDE:callback")
 
 	#pragma const_seg(".CRT$XLA")
-	extern "C" const PIMAGE_TLS_CALLBACK callback = TlsCallBack;
+	extern "C" const PIMAGE_TLS_CALLBACK callback = TlsCallback;
 	#pragma const_seg()
 #endif
 
@@ -35,7 +35,7 @@ void __stdcall TlsCallBack(void* moduleHandle, unsigned long reason, void* reser
     #pragma comment (linker, "/INCLUDE:_callback")
 	
     #pragma data_seg(".CRT$XLA")
-    extern "C" PIMAGE_TLS_CALLBACK callback = TlsCallBack;
+    extern "C" PIMAGE_TLS_CALLBACK callback = TlsCallback;
     #pragma data_seg()
 #endif
 
