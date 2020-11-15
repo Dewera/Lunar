@@ -6,13 +6,13 @@ A lightweight native DLL mapping library that supports mapping directly from mem
 
 ---
 
-### Features
+### Notable features
 
-- x86 and x64 support
-- Direct memory mapping
 - Manual exception handler initialisation
-- Randomised security cookie generation
+- Security cookie generation
+- SxS dependency resolution
 - TLS callback execution
+- x86 and x64 support
 
 ---
 
