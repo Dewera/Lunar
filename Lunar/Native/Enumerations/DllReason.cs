@@ -1,4 +1,4 @@
-﻿namespace Lunar.Native.Enumerations
+namespace Lunar.Native.Enumerations
 {
     internal enum DllReason
     {

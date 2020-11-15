@@ -5,7 +5,7 @@ namespace Lunar.Native.Structures
     [StructLayout(LayoutKind.Explicit, Size = 20)]
     internal readonly struct ApiSetValueEntry
     {
-        [FieldOffset(0x0C)]
+        [FieldOffset(0xC)]
         internal readonly int ValueOffset;
 
         [FieldOffset(0x10)]

@@ -8,76 +8,67 @@ namespace Lunar.PortableExecutable.DataDirectories
 {
     internal sealed class LoadConfigDirectory : DataDirectory
     {
-        internal SecurityCookie? SecurityCookie { get; }
+        internal LoadConfigDirectory(PEHeaders headers, Memory<byte> imageBytes) : base(headers, imageBytes, headers.PEHeader!.LoadConfigTableDirectory) { }
 
-        internal SehTable? SehTable { get; }
-
-        internal LoadConfigDirectory(PEHeaders headers, Memory<byte> imageBuffer) : base(headers, imageBuffer)
+        internal ExceptionTable? GetExceptionTable()
         {
-            SecurityCookie = ReadSecurityCookie();
-
-            SehTable = ReadSehTable();
-        }
-
-        private SecurityCookie? ReadSecurityCookie()
-        {
-            if (!Headers.TryGetDirectoryOffset(Headers.PEHeader.LoadConfigTableDirectory, out var loadConfigDirectoryOffset))
+            if (!IsValid)
             {
                 return null;
             }
 
-            if (Headers.PEHeader.Magic == PEMagic.PE32)
+            if (Headers.PEHeader!.DllCharacteristics.HasFlag(DllCharacteristics.NoSeh))
+            {
+                return new ExceptionTable(-1, -1);
+            }
+
+            // Read the load config directory
+
+            var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory32>(ImageBytes.Span.Slice(DirectoryOffset));
+
+            var exceptionTableAddress = VaToRva(loadConfigDirectory.SEHandlerTable);
+
+            return new ExceptionTable(loadConfigDirectory.SEHandlerCount, exceptionTableAddress);
+        }
+
+        internal SecurityCookie? GetSecurityCookie()
+        {
+            if (!IsValid)
+            {
+                return null;
+            }
+
+            if (Headers.PEHeader!.Magic == PEMagic.PE32)
             {
                 // Read the load config directory
 
-                var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory32>(ImageBuffer.Span.Slice(loadConfigDirectoryOffset));
+                var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory32>(ImageBytes.Span.Slice(DirectoryOffset));
 
                 if (loadConfigDirectory.SecurityCookie == 0)
                 {
                     return null;
                 }
 
-                var cookieRva = VaToRva(loadConfigDirectory.SecurityCookie);
+                var securityCookieAddress = VaToRva(loadConfigDirectory.SecurityCookie);
 
-                return new SecurityCookie(cookieRva);
+                return new SecurityCookie(securityCookieAddress);
             }
 
             else
             {
                 // Read the load config directory
 
-                var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory64>(ImageBuffer.Span.Slice(loadConfigDirectoryOffset));
+                var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory64>(ImageBytes.Span.Slice(DirectoryOffset));
 
                 if (loadConfigDirectory.SecurityCookie == 0)
                 {
                     return null;
                 }
 
-                var cookieRva = VaToRva(loadConfigDirectory.SecurityCookie);
+                var securityCookieAddress = VaToRva(loadConfigDirectory.SecurityCookie);
 
-                return new SecurityCookie(cookieRva);
+                return new SecurityCookie(securityCookieAddress);
             }
-        }
-
-        private SehTable? ReadSehTable()
-        {
-            if (Headers.PEHeader.Magic == PEMagic.PE32Plus || !Headers.TryGetDirectoryOffset(Headers.PEHeader.LoadConfigTableDirectory, out var loadConfigDirectoryOffset))
-            {
-                return null;
-            }
-
-            // Read the load config directory
-
-            var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory32>(ImageBuffer.Span.Slice(loadConfigDirectoryOffset));
-
-            if (loadConfigDirectory.SEHandlerCount == 0 || loadConfigDirectory.SEHandlerTable == 0)
-            {
-                return new SehTable(-1, -1);
-            }
-
-            var tableRva = VaToRva(loadConfigDirectory.SEHandlerTable);
-
-            return new SehTable(loadConfigDirectory.SEHandlerCount, tableRva);
         }
     }
 }

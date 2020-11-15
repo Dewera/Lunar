@@ -28,7 +28,6 @@ void __stdcall TlsCallBack(void* moduleHandle, unsigned long reason, void* reser
 	#pragma const_seg(".CRT$XLA")
 	extern "C" const PIMAGE_TLS_CALLBACK callback = TlsCallBack;
 	#pragma const_seg()
-
 #endif
 
 #ifdef _M_IX86

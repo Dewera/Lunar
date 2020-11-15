@@ -3,7 +3,7 @@
 namespace Lunar
 {
     /// <summary>
-    /// Defines actions that the mapper should take during mapping
+    /// Defines actions that the mapper should take during the mapping process
     /// </summary>
     [Flags]
     public enum MappingFlags
@@ -17,7 +17,7 @@ namespace Lunar
         /// </summary>
         DiscardHeaders = 1,
         /// <summary>
-        /// Specifies that TLS callbacks and DllMain should not be called
+        /// Specifies that any TLS callbacks and DllMain should not be called
         /// </summary>
         SkipInitialisationRoutines = 2
     }

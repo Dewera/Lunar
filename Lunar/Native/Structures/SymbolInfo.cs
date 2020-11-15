@@ -15,13 +15,13 @@ namespace Lunar.Native.Structures
         [FieldOffset(0x50)]
         private readonly int MaxNameLen;
 
-        internal SymbolInfo(int nameBufferSize)
+        internal SymbolInfo(int maxNameLen)
         {
             SizeOfStruct = Unsafe.SizeOf<SymbolInfo>();
 
             Address = 0;
 
-            MaxNameLen = nameBufferSize;
+            MaxNameLen = maxNameLen;
         }
     }
 }

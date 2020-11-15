@@ -5,7 +5,7 @@ namespace Lunar.Native.Structures
     [StructLayout(LayoutKind.Explicit, Size = 28)]
     internal readonly struct ApiSetNamespace
     {
-        [FieldOffset(0x0C)]
+        [FieldOffset(0xC)]
         internal readonly int Count;
 
         [FieldOffset(0x10)]

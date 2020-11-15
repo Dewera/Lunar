@@ -1,7 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
+using System.Text;
 using Lunar.Native.Structures;
 using Lunar.PortableExecutable.Structures;
 
@@ -9,75 +9,116 @@ namespace Lunar.PortableExecutable.DataDirectories
 {
     internal sealed class ExportDirectory : DataDirectory
     {
-        internal IEnumerable<ExportedFunction> ExportedFunctions { get; }
+        internal ExportDirectory(PEHeaders headers, Memory<byte> imageBytes) : base(headers, imageBytes, headers.PEHeader!.ExportTableDirectory) { }
 
-        internal ExportDirectory(PEHeaders headers, Memory<byte> imageBuffer) : base(headers, imageBuffer)
+        internal ExportedFunction? GetExportedFunction(string functionName)
         {
-            ExportedFunctions = ReadExportedFunctions();
-        }
-
-        private IEnumerable<ExportedFunction> ReadExportedFunctions()
-        {
-            if (!Headers.TryGetDirectoryOffset(Headers.PEHeader.ExportTableDirectory, out var exportDirectoryOffset))
+            if (!IsValid)
             {
-                yield break;
+                return null;
             }
 
             // Read the export directory
 
-            var exportDirectory = MemoryMarshal.Read<ImageExportDirectory>(ImageBuffer.Span.Slice(exportDirectoryOffset));
+            var exportDirectory = MemoryMarshal.Read<ImageExportDirectory>(ImageBytes.Span.Slice(DirectoryOffset));
 
-            var functionNamesRvasBaseOffset = RvaToOffset(exportDirectory.AddressOfNames);
+            // Read the name address table
 
-            var functionOrdinalsBaseOffset = RvaToOffset(exportDirectory.AddressOfNameOrdinals);
+            var nameAddressTableOffset = RvaToOffset(exportDirectory.AddressOfNames);
 
-            var functionRvasBaseOffset = RvaToOffset(exportDirectory.AddressOfFunctions);
+            var nameAddressTable = MemoryMarshal.Cast<byte, int>(ImageBytes.Span.Slice(nameAddressTableOffset, sizeof(int) * exportDirectory.NumberOfNames));
 
-            for (var functionIndex = 0; functionIndex < exportDirectory.NumberOfNames; functionIndex += 1)
+            // Search the name address table for the corresponding name
+
+            var low = 0;
+
+            var high = exportDirectory.NumberOfNames - 1;
+
+            while (low <= high)
             {
-                // Read the name of the function
+                var middle = (low + high) / 2;
 
-                var functionNameOffsetRvaOffset = functionNamesRvasBaseOffset + functionIndex * sizeof(int);
+                // Read the name
 
-                var functionNameOffsetRva = MemoryMarshal.Read<int>(ImageBuffer.Span.Slice(functionNameOffsetRvaOffset));
+                var nameOffset = RvaToOffset(nameAddressTable[middle]);
 
-                var functionNameOffset = RvaToOffset(functionNameOffsetRva);
+                var nameLength = ImageBytes.Span.Slice(nameOffset).IndexOf(byte.MinValue);
 
-                var functionName = ReadString(functionNameOffset);
+                var name = Encoding.UTF8.GetString(ImageBytes.Span.Slice(nameOffset, nameLength));
 
-                // Read the ordinal of the function
-
-                var functionOrdinalOffset = functionOrdinalsBaseOffset + functionIndex * sizeof(short);
-
-                var functionOrdinal = MemoryMarshal.Read<short>(ImageBuffer.Span.Slice(functionOrdinalOffset));
-
-                // Read the relative virtual address of the function
-
-                var functionRvaOffset = functionRvasBaseOffset + functionOrdinal * sizeof(int);
-
-                var functionRva = MemoryMarshal.Read<int>(ImageBuffer.Span.Slice(functionRvaOffset));
-
-                // Check if the function is forwarded
-
-                var exportDirectoryStartOffset = Headers.PEHeader.ExportTableDirectory.RelativeVirtualAddress;
-
-                var exportDirectoryEndOffset = exportDirectoryStartOffset + Headers.PEHeader.ExportTableDirectory.Size;
-
-                if (functionRva < exportDirectoryStartOffset || functionRva > exportDirectoryEndOffset)
+                if (functionName.Equals(name, StringComparison.OrdinalIgnoreCase))
                 {
-                    yield return new ExportedFunction(null, functionName, exportDirectory.Base + functionOrdinal, functionRva);
+                    // Read the name ordinal table
 
-                    continue;
+                    var ordinalTableOffset = RvaToOffset(exportDirectory.AddressOfNameOrdinals);
+
+                    var ordinalTable = MemoryMarshal.Cast<byte, short>(ImageBytes.Span.Slice(ordinalTableOffset, sizeof(short) * exportDirectory.NumberOfNames));
+
+                    var functionOrdinal = exportDirectory.Base + ordinalTable[middle];
+
+                    return GetExportedFunction(functionOrdinal);
                 }
 
-                // Read the forwarder string
+                if (string.CompareOrdinal(functionName, name) < 0)
+                {
+                    high = middle - 1;
+                }
 
-                var forwarderStringOffset = RvaToOffset(functionRva);
-
-                var forwarderString = ReadString(forwarderStringOffset);
-
-                yield return new ExportedFunction(forwarderString, functionName, exportDirectory.Base + functionOrdinal, functionRva);
+                else
+                {
+                    low = middle + 1;
+                }
             }
+
+            return null;
+        }
+
+        internal ExportedFunction? GetExportedFunction(int functionOrdinal)
+        {
+            if (!IsValid)
+            {
+                return null;
+            }
+
+            // Read the export directory
+
+            var exportDirectory = MemoryMarshal.Read<ImageExportDirectory>(ImageBytes.Span.Slice(DirectoryOffset));
+
+            functionOrdinal -= exportDirectory.Base;
+
+            if (functionOrdinal >= exportDirectory.NumberOfFunctions)
+            {
+                return null;
+            }
+
+            // Read the address table
+
+            var addressTableOffset = RvaToOffset(exportDirectory.AddressOfFunctions);
+
+            var addressTable = MemoryMarshal.Cast<byte, int>(ImageBytes.Span.Slice(addressTableOffset, sizeof(int) * exportDirectory.NumberOfFunctions));
+
+            var functionAddress = addressTable[functionOrdinal];
+
+            // Check if the function is forwarded
+
+            var exportDirectoryStartAddress = Headers.PEHeader!.ExportTableDirectory.RelativeVirtualAddress;
+
+            var exportDirectoryEndAddress = exportDirectoryStartAddress + Headers.PEHeader!.ExportTableDirectory.Size;
+
+            if (functionAddress < exportDirectoryStartAddress || functionAddress > exportDirectoryEndAddress)
+            {
+                return new ExportedFunction(null, functionAddress);
+            }
+
+            // Read the forwarder string
+
+            var forwarderStringOffset = RvaToOffset(functionAddress);
+
+            var forwarderStringLength = ImageBytes.Span.Slice(forwarderStringOffset).IndexOf(byte.MinValue);
+
+            var forwarderString = Encoding.UTF8.GetString(ImageBytes.Span.Slice(forwarderStringOffset, forwarderStringLength));
+
+            return new ExportedFunction(forwarderString, functionAddress);
         }
     }
 }

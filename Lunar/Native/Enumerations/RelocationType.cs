@@ -1,6 +1,6 @@
 ﻿namespace Lunar.Native.Enumerations
 {
-    internal enum BaseRelocationType
+    internal enum RelocationType
     {
         HighLow = 0x3,
         Dir64 = 0xA

@@ -5,8 +5,8 @@ namespace Lunar.Native.Structures
     [StructLayout(LayoutKind.Explicit, Size = 168)]
     internal readonly struct LdrDataTableEntry32
     {
-        [FieldOffset(0x08)]
-        internal readonly ListEntry32 InMemoryOrderLinks;
+        [FieldOffset(0x0)]
+        internal readonly ListEntry32 InLoadOrderLinks;
 
         [FieldOffset(0x18)]
         internal readonly int DllBase;
@@ -21,8 +21,8 @@ namespace Lunar.Native.Structures
     [StructLayout(LayoutKind.Explicit, Size = 288)]
     internal readonly struct LdrDataTableEntry64
     {
-        [FieldOffset(0x10)]
-        internal readonly ListEntry64 InMemoryOrderLinks;
+        [FieldOffset(0x0)]
+        internal readonly ListEntry64 InLoadOrderLinks;
 
         [FieldOffset(0x30)]
         internal readonly long DllBase;

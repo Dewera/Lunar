@@ -3,7 +3,7 @@
 namespace Lunar.Native.Structures
 {
     [StructLayout(LayoutKind.Explicit, Size = 16)]
-    internal readonly struct RtlInvertedFunctionTableEntry32
+    internal readonly struct InvertedFunctionTableEntry32
     {
         [FieldOffset(0x0)]
         private readonly int ExceptionDirectory;
@@ -17,7 +17,7 @@ namespace Lunar.Native.Structures
         [FieldOffset(0xC)]
         private readonly int ExceptionDirectorySize;
 
-        internal RtlInvertedFunctionTableEntry32(int exceptionDirectory, int imageBase, int imageSize, int exceptionDirectorySize)
+        internal InvertedFunctionTableEntry32(int exceptionDirectory, int imageBase, int imageSize, int exceptionDirectorySize)
         {
             ExceptionDirectory = exceptionDirectory;
 
@@ -30,7 +30,7 @@ namespace Lunar.Native.Structures
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 24)]
-    internal readonly struct RtlInvertedFunctionTableEntry64
+    internal readonly struct InvertedFunctionTableEntry64
     {
         [FieldOffset(0x0)]
         private readonly long ExceptionDirectory;
@@ -44,7 +44,7 @@ namespace Lunar.Native.Structures
         [FieldOffset(0x14)]
         private readonly int ExceptionDirectorySize;
 
-        internal RtlInvertedFunctionTableEntry64(long exceptionDirectory, long imageBase, int imageSize, int exceptionDirectorySize)
+        internal InvertedFunctionTableEntry64(long exceptionDirectory, long imageBase, int imageSize, int exceptionDirectorySize)
         {
             ExceptionDirectory = exceptionDirectory;
 

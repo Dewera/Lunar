@@ -9,15 +9,15 @@ namespace Lunar.Tests
     [Collection("LibraryMapper Tests")]
     public sealed class X64Tests : IDisposable
     {
-        private readonly string _testBinaryDirectory;
+        private readonly string _testBinaryDirectoryPath;
 
         private readonly Process _process;
 
         public X64Tests()
         {
-            _testBinaryDirectory = Path.GetFullPath(@"..\..\..\TestBinaries\bin\x64\Release");
+            _testBinaryDirectoryPath = Path.GetFullPath(@"..\..\..\TestBinaries\bin\x64\Release");
 
-            _process = new Process {StartInfo = {FileName = Path.Combine(_testBinaryDirectory, "Target.exe"), UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden}};
+            _process = new Process {StartInfo = {FileName = Path.Combine(_testBinaryDirectoryPath, "Target.exe"), UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden}};
 
             _process.Start();
 
@@ -34,10 +34,10 @@ namespace Lunar.Tests
         [Theory]
         [InlineData("Basic.dll")]
         [InlineData("Exception.dll")]
-        [InlineData("TlsCallBack.dll")]
+        [InlineData("TlsCallback.dll")]
         public void TestMap(string dllName)
         {
-            var libraryMapper = new LibraryMapper(_process, Path.Combine(_testBinaryDirectory, dllName));
+            var libraryMapper = new LibraryMapper(_process, Path.Combine(_testBinaryDirectoryPath, dllName));
 
             libraryMapper.MapLibrary();
 
@@ -47,11 +47,10 @@ namespace Lunar.Tests
         [Theory]
         [InlineData("Basic.dll")]
         [InlineData("Exception.dll")]
-        [InlineData("TlsCallBack.dll")]
-
+        [InlineData("TlsCallback.dll")]
         public void TestUnmap(string dllName)
         {
-            var libraryMapper = new LibraryMapper(_process, Path.Combine(_testBinaryDirectory, dllName));
+            var libraryMapper = new LibraryMapper(_process, Path.Combine(_testBinaryDirectoryPath, dllName));
 
             libraryMapper.MapLibrary();
 

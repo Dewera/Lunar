@@ -1,49 +1,44 @@
 ﻿using System;
 using System.Reflection.PortableExecutable;
-using System.Text;
 
 namespace Lunar.PortableExecutable
 {
     internal abstract class DataDirectory
     {
-        protected PEHeaders Headers { get; }
+        private protected int DirectoryOffset { get; }
 
-        protected Memory<byte> ImageBuffer { get; }
+        private protected PEHeaders Headers { get; }
 
-        protected DataDirectory(PEHeaders headers, Memory<byte> imageBuffer)
+        private protected Memory<byte> ImageBytes { get; }
+
+        private protected bool IsValid { get; }
+
+        private protected DataDirectory(PEHeaders headers, Memory<byte> imageBytes, DirectoryEntry directory)
         {
+            IsValid = headers.TryGetDirectoryOffset(directory, out var directoryOffset);
+
+            DirectoryOffset = directoryOffset;
+
             Headers = headers;
 
-            ImageBuffer = imageBuffer;
+            ImageBytes = imageBytes;
         }
 
-        protected string ReadString(int offset)
-        {
-            var stringLength = 0;
-
-            while (ImageBuffer.Span[offset + stringLength] != byte.MinValue)
-            {
-                stringLength += 1;
-            }
-
-            return Encoding.UTF8.GetString(ImageBuffer.Span.Slice(offset, stringLength));
-        }
-
-        protected int RvaToOffset(int rva)
+        private protected int RvaToOffset(int rva)
         {
             var sectionHeader = Headers.SectionHeaders[Headers.GetContainingSectionIndex(rva)];
 
             return rva - sectionHeader.VirtualAddress + sectionHeader.PointerToRawData;
         }
 
-        protected int VaToRva(int va)
+        private protected int VaToRva(int va)
         {
-            return va - (int) Headers.PEHeader.ImageBase;
+            return va - (int) Headers.PEHeader!.ImageBase;
         }
 
-        protected int VaToRva(long va)
+        private protected int VaToRva(long va)
         {
-            return (int) (va - (long) Headers.PEHeader.ImageBase);
+            return (int) (va - (long) Headers.PEHeader!.ImageBase);
         }
     }
 }

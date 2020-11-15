@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 using Lunar.Native.Structures;
 using Lunar.PortableExecutable.Structures;
 
@@ -10,64 +11,61 @@ namespace Lunar.PortableExecutable.DataDirectories
 {
     internal sealed class ImportDirectory : DataDirectory
     {
-        internal IEnumerable<ImportDescriptor> ImportDescriptors { get; }
+        internal ImportDirectory(PEHeaders headers, Memory<byte> imageBytes) : base(headers, imageBytes, headers.PEHeader!.ImportTableDirectory) { }
 
-        internal ImportDirectory(PEHeaders headers, Memory<byte> imageBuffer) : base(headers, imageBuffer)
+        internal IEnumerable<ImportDescriptor> GetImportDescriptors()
         {
-            ImportDescriptors = ReadImportDescriptors();
-        }
-
-        private IEnumerable<ImportDescriptor> ReadImportDescriptors()
-        {
-            if (!Headers.TryGetDirectoryOffset(Headers.PEHeader.ImportTableDirectory, out var currentDescriptorOffset))
+            if (!IsValid)
             {
                 yield break;
             }
 
-            while (true)
+            for (var descriptorIndex = 0;; descriptorIndex += 1)
             {
                 // Read the descriptor
 
-                var descriptor = MemoryMarshal.Read<ImageImportDescriptor>(ImageBuffer.Span.Slice(currentDescriptorOffset));
+                var descriptorOffset = DirectoryOffset + Unsafe.SizeOf<ImageImportDescriptor>() * descriptorIndex;
+
+                var descriptor = MemoryMarshal.Read<ImageImportDescriptor>(ImageBytes.Span.Slice(descriptorOffset));
 
                 if (descriptor.FirstThunk == 0)
                 {
                     break;
                 }
 
-                // Read the name of the descriptor
+                // Read the descriptor name
 
                 var descriptorNameOffset = RvaToOffset(descriptor.Name);
 
-                var descriptorName = ReadString(descriptorNameOffset);
+                var descriptorNameLength = ImageBytes.Span.Slice(descriptorNameOffset).IndexOf(byte.MinValue);
+
+                var descriptorName = Encoding.UTF8.GetString(ImageBytes.Span.Slice(descriptorNameOffset, descriptorNameLength));
 
                 // Read the functions imported under the descriptor
 
-                var currentIatOffset = RvaToOffset(descriptor.FirstThunk);
+                var offsetTableOffset = RvaToOffset(descriptor.FirstThunk);
 
-                var currentThunkOffset = descriptor.OriginalFirstThunk == 0 ? currentIatOffset : RvaToOffset(descriptor.OriginalFirstThunk);
+                var thunkTableOffset = descriptor.OriginalFirstThunk == 0 ? offsetTableOffset : RvaToOffset(descriptor.OriginalFirstThunk);
 
-                var functions = ReadImportedFunctions(currentIatOffset, currentThunkOffset);
+                var functions = GetImportedFunctions(offsetTableOffset, thunkTableOffset);
 
                 yield return new ImportDescriptor(functions, descriptorName);
-
-                // Set the offset of the next descriptor
-
-                currentDescriptorOffset += Unsafe.SizeOf<ImageImportDescriptor>();
             }
         }
 
-        private IEnumerable<ImportedFunction> ReadImportedFunctions(int currentIatOffset, int currentThunkOffset)
+        private IEnumerable<ImportedFunction> GetImportedFunctions(int offsetTableOffset, int thunkTableOffset)
         {
-            while (true)
+            for (var functionIndex = 0;; functionIndex += 1)
             {
-                int functionDataOffset;
-
-                if (Headers.PEHeader.Magic == PEMagic.PE32)
+                if (Headers.PEHeader!.Magic == PEMagic.PE32)
                 {
-                    // Read the thunk of the function
+                    var functionOffset = offsetTableOffset + sizeof(int) * functionIndex;
 
-                    var functionThunk = MemoryMarshal.Read<int>(ImageBuffer.Span.Slice(currentThunkOffset));
+                    // Read the function thunk
+
+                    var functionThunkOffset = thunkTableOffset + sizeof(int) * functionIndex;
+
+                    var functionThunk = MemoryMarshal.Read<int>(ImageBytes.Span.Slice(functionThunkOffset));
 
                     if (functionThunk == 0)
                     {
@@ -78,19 +76,40 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                     if ((functionThunk & int.MinValue) != 0)
                     {
-                        yield return new ImportedFunction(currentIatOffset, null, functionThunk & ushort.MaxValue);
+                        var functionOrdinal = functionThunk & ushort.MaxValue;
 
-                        continue;
+                        yield return new ImportedFunction(null, functionOffset, functionOrdinal);
                     }
 
-                    functionDataOffset = RvaToOffset(functionThunk);
+                    else
+                    {
+                        // Read the function ordinal
+
+                        var functionOrdinalOffset = RvaToOffset(functionThunk);
+
+                        var functionOrdinal = MemoryMarshal.Read<short>(ImageBytes.Span.Slice(functionOrdinalOffset));
+
+                        // Read the function name
+
+                        var functionNameOffset = functionOrdinalOffset + sizeof(short);
+
+                        var functionNameLength = ImageBytes.Span.Slice(functionNameOffset).IndexOf(byte.MinValue);
+
+                        var functionName = Encoding.UTF8.GetString(ImageBytes.Span.Slice(functionNameOffset, functionNameLength));
+
+                        yield return new ImportedFunction(functionName, functionOffset, functionOrdinal);
+                    }
                 }
 
                 else
                 {
-                    // Read the thunk of the function
+                    var functionOffset = offsetTableOffset + sizeof(long) * functionIndex;
 
-                    var functionThunk = MemoryMarshal.Read<long>(ImageBuffer.Span.Slice(currentThunkOffset));
+                    // Read the function thunk
+
+                    var functionThunkOffset = thunkTableOffset + sizeof(long) * functionIndex;
+
+                    var functionThunk = MemoryMarshal.Read<long>(ImageBytes.Span.Slice(functionThunkOffset));
 
                     if (functionThunk == 0)
                     {
@@ -101,40 +120,29 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                     if ((functionThunk & long.MinValue) != 0)
                     {
-                        yield return new ImportedFunction(currentIatOffset, null, (int) functionThunk & ushort.MaxValue);
+                        var functionOrdinal = functionThunk & ushort.MaxValue;
 
-                        continue;
+                        yield return new ImportedFunction(null, functionOffset, (int) functionOrdinal);
                     }
 
-                    functionDataOffset = RvaToOffset((int) functionThunk);
-                }
+                    else
+                    {
+                        // Read the function ordinal
 
-                // Read the name of the function
+                        var functionOrdinalOffset = RvaToOffset((int) functionThunk);
 
-                var functionNameOffset = functionDataOffset + sizeof(short);
+                        var functionOrdinal = MemoryMarshal.Read<short>(ImageBytes.Span.Slice(functionOrdinalOffset));
 
-                var functionName = ReadString(functionNameOffset);
+                        // Read the function name
 
-                // Read the ordinal of the imported function
+                        var functionNameOffset = functionOrdinalOffset + sizeof(short);
 
-                var functionOrdinal = MemoryMarshal.Read<short>(ImageBuffer.Span.Slice(functionDataOffset));
+                        var functionNameLength = ImageBytes.Span.Slice(functionNameOffset).IndexOf(byte.MinValue);
 
-                yield return new ImportedFunction(currentIatOffset, functionName, functionOrdinal);
+                        var functionName = Encoding.UTF8.GetString(ImageBytes.Span.Slice(functionNameOffset, functionNameLength));
 
-                // Set the offset of the next function IAT and thunk offset
-
-                if (Headers.PEHeader.Magic == PEMagic.PE32)
-                {
-                    currentIatOffset += sizeof(int);
-
-                    currentThunkOffset += sizeof(int);
-                }
-
-                else
-                {
-                    currentIatOffset += sizeof(long);
-
-                    currentThunkOffset += sizeof(long);
+                        yield return new ImportedFunction(functionName, functionOffset, functionOrdinal);
+                    }
                 }
             }
         }

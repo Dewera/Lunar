@@ -88,7 +88,7 @@ UnmapLibrary()
 
 ### MappingFlags Enum
 
-Defines actions that the mapper should take during mapping
+Defines actions that the mapper should take during the mapping process
 
 ```c#
 [Flags]
@@ -109,7 +109,7 @@ Specifies that the header region of the DLL should not be mapped
 MappingsFlags.DiscardHeaders 
 ```
 
-Specifies that TLS callbacks and DllMain should not be called
+Specifies that any TLS callbacks and DllMain should not be called
 
 ```c#
 MappingsFlags.SkipInitialisationRoutines

@@ -1,5 +1,5 @@
 ﻿using System;
-using System.IO;
+using System.Collections.Immutable;
 using System.Reflection.PortableExecutable;
 using Lunar.PortableExecutable.DataDirectories;
 
@@ -7,10 +7,6 @@ namespace Lunar.PortableExecutable
 {
     internal sealed class PeImage
     {
-        internal BaseRelocationDirectory BaseRelocationDirectory { get; }
-
-        internal DelayImportDirectory DelayImportDirectory { get; }
-
         internal ExportDirectory ExportDirectory { get; }
 
         internal PEHeaders Headers { get; }
@@ -19,40 +15,34 @@ namespace Lunar.PortableExecutable
 
         internal LoadConfigDirectory LoadConfigDirectory { get; }
 
+        internal RelocationDirectory RelocationDirectory { get; }
+
+        internal ResourceDirectory ResourceDirectory { get; }
+
         internal TlsDirectory TlsDirectory { get; }
 
-        internal PeImage(Memory<byte> imageBuffer)
+        internal PeImage(Memory<byte> imageBytes)
         {
-            using var peReader = new PEReader(new MemoryStream(imageBuffer.ToArray()));
+            using var peReader = new PEReader(imageBytes.ToArray().ToImmutableArray());
 
-            BaseRelocationDirectory = new BaseRelocationDirectory(peReader.PEHeaders, imageBuffer);
-
-            DelayImportDirectory = new DelayImportDirectory(peReader.PEHeaders, imageBuffer);
-
-            ExportDirectory = new ExportDirectory(peReader.PEHeaders, imageBuffer);
-
-            Headers = peReader.PEHeaders;
-
-            ImportDirectory = new ImportDirectory(peReader.PEHeaders, imageBuffer);
-
-            LoadConfigDirectory = new LoadConfigDirectory(peReader.PEHeaders, imageBuffer);
-
-            TlsDirectory = new TlsDirectory(peReader.PEHeaders, imageBuffer);
-
-            ValidatePeImage();
-        }
-
-        private void ValidatePeImage()
-        {
-            if (!Headers.IsDll)
+            if (peReader.PEHeaders.PEHeader is null || !peReader.PEHeaders.IsDll)
             {
                 throw new BadImageFormatException("The provided file was not a valid DLL");
             }
 
-            if (Headers.CorHeader != null)
-            {
-                throw new BadImageFormatException("The provided file was a managed DLL and cannot be mapped");
-            }
+            ExportDirectory = new ExportDirectory(peReader.PEHeaders, imageBytes);
+
+            Headers = peReader.PEHeaders;
+
+            ImportDirectory = new ImportDirectory(peReader.PEHeaders, imageBytes);
+
+            LoadConfigDirectory = new LoadConfigDirectory(peReader.PEHeaders, imageBytes);
+
+            RelocationDirectory = new RelocationDirectory(peReader.PEHeaders, imageBytes);
+
+            ResourceDirectory = new ResourceDirectory(peReader.PEHeaders, imageBytes);
+
+            TlsDirectory = new TlsDirectory(peReader.PEHeaders, imageBytes);
         }
     }
 }

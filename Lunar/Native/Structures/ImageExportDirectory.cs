@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 
 namespace Lunar.Native.Structures
 {
@@ -7,6 +7,9 @@ namespace Lunar.Native.Structures
     {
         [FieldOffset(0x10)]
         internal readonly int Base;
+
+        [FieldOffset(0x14)]
+        internal readonly int NumberOfFunctions;
 
         [FieldOffset(0x18)]
         internal readonly int NumberOfNames;

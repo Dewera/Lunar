@@ -1,14 +1,14 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 
 namespace Lunar.Native.Structures
 {
     [StructLayout(LayoutKind.Explicit, Size = 20)]
     internal readonly struct ImageImportDescriptor
     {
-        [FieldOffset(0x00)]
+        [FieldOffset(0x0)]
         internal readonly int OriginalFirstThunk;
 
-        [FieldOffset(0x0C)]
+        [FieldOffset(0xC)]
         internal readonly int Name;
 
         [FieldOffset(0x10)]

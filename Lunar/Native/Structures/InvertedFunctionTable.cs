@@ -3,7 +3,7 @@
 namespace Lunar.Native.Structures
 {
     [StructLayout(LayoutKind.Explicit, Size = 16)]
-    internal readonly struct RtlInvertedFunctionTable
+    internal readonly struct InvertedFunctionTable
     {
         [FieldOffset(0x0)]
         internal readonly int Count;
@@ -14,7 +14,7 @@ namespace Lunar.Native.Structures
         [FieldOffset(0xC)]
         internal readonly int Overflow;
 
-        internal RtlInvertedFunctionTable(int count, int maxCount, int overflow)
+        internal InvertedFunctionTable(int count, int maxCount, int overflow)
         {
             Count = count;
 

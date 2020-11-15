@@ -1,36 +1,28 @@
-﻿using System;
-using System.Runtime.InteropServices;
+using System;
+using System.Runtime.CompilerServices;
 
 namespace Lunar.Shared
 {
     internal static class SafeHelpers
     {
-        internal static IntPtr CreateSafeIntPtr(int pointer)
+        internal static IntPtr CreateSafePointer(int pointer)
         {
-            if (pointer >= 0)
-            {
-                return new IntPtr(pointer);
-            }
-
-            Span<byte> pointerBuffer = stackalloc byte[IntPtr.Size];
-
-            MemoryMarshal.Write(pointerBuffer, ref pointer);
-
-            return MemoryMarshal.Read<IntPtr>(pointerBuffer);
+            return pointer >= 0 ? new IntPtr(pointer) : Unsafe.As<int, IntPtr>(ref pointer);
         }
 
-        internal static IntPtr CreateSafeIntPtr(long pointer)
+        internal static IntPtr CreateSafePointer(long pointer)
         {
-            if (pointer >= 0)
-            {
-                return new IntPtr(pointer);
-            }
+            return pointer >= 0 ? new IntPtr(pointer) : Unsafe.As<long, IntPtr>(ref pointer);
+        }
 
-            Span<byte> pointerBuffer = stackalloc byte[IntPtr.Size];
+        internal static int Xor(int left, int right)
+        {
+            return (int) ((uint) left ^ (uint) right);
+        }
 
-            MemoryMarshal.Write(pointerBuffer, ref pointer);
-
-            return MemoryMarshal.Read<IntPtr>(pointerBuffer);
+        internal static int Rotr(int left, int right)
+        {
+            return (int) (((uint) left >> right) | ((uint) left << (32 - right)));
         }
     }
 }
