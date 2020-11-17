@@ -61,9 +61,24 @@ namespace Lunar.Symbol
 
                 MemoryMarshal.Write(symbolInformationBytes, ref Unsafe.AsRef(new SymbolInfo(Constants.MaxSymbolNameLength)));
 
-                // Retrieve the symbol information
+                try
+                {
+                    // Retrieve the symbol information
 
-                if (!Dbghelp.SymFromName(currentProcessHandle, symbolName, out symbolInformationBytes[0]))
+                    if (!Dbghelp.SymFromName(currentProcessHandle, symbolName, out symbolInformationBytes[0]))
+                    {
+                        throw new Win32Exception();
+                    }
+                }
+
+                catch
+                {
+                    Dbghelp.SymUnloadModule(currentProcessHandle, pseudoDllAddress);
+
+                    throw;
+                }
+
+                if (!Dbghelp.SymUnloadModule(currentProcessHandle, pseudoDllAddress))
                 {
                     throw new Win32Exception();
                 }

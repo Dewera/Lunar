@@ -6,7 +6,7 @@ add_executable(Target Executables/Target.cpp)
 
 add_library(Basic SHARED Libraries/Basic.cpp)
 add_library(Exception SHARED Libraries/Exception.cpp)
-add_library(TlsCallBack SHARED Libraries/TlsCallBack.cpp)
+add_library(TlsCallback SHARED Libraries/TlsCallback.cpp)
 
 set(CMAKE_CXX_STANDARD 20)
 
@@ -23,7 +23,7 @@ target_compile_options(Target PUBLIC ${MSVC_COMPILE_FLAGS})
 
 target_compile_options(Basic PUBLIC ${MSVC_COMPILE_FLAGS})
 target_compile_options(Exception PUBLIC ${MSVC_COMPILE_FLAGS})
-target_compile_options(TlsCallBack PUBLIC ${MSVC_COMPILE_FLAGS})
+target_compile_options(TlsCallback PUBLIC ${MSVC_COMPILE_FLAGS})
 
 # /INCREMENTAL:NO    - Disables incremental linking
 # /LARGEADDRESSAWARE - Tells the linker that the application can handle addresses larger than 2 gigabytes
@@ -38,4 +38,4 @@ target_link_options(Target PUBLIC ${MSVC_LINKER_FLAGS})
 
 target_link_options(Basic PUBLIC ${MSVC_LINKER_FLAGS})
 target_link_options(Exception PUBLIC ${MSVC_LINKER_FLAGS})
-target_link_options(TlsCallBack PUBLIC ${MSVC_LINKER_FLAGS})
+target_link_options(TlsCallback PUBLIC ${MSVC_LINKER_FLAGS})

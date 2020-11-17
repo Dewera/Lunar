@@ -30,43 +30,43 @@ namespace Lunar.FileResolution
                 return sxsFilePath;
             }
 
-            // Search the root directory
+            // Search the directory from which the process was loaded
 
-            if (_rootDirectoryPath is not null)
+            var processDirectoryFilePath = Path.Combine(Path.GetDirectoryName(_process.MainModule!.FileName)!, fileName);
+
+            if (File.Exists(processDirectoryFilePath))
             {
-                var rootFilePath = Path.Combine(_rootDirectoryPath, fileName);
-
-                if (File.Exists(rootFilePath))
-                {
-                    return rootFilePath;
-                }
+                return processDirectoryFilePath;
             }
 
             // Search the System directory
 
-            var systemFilePath = Path.Combine(_process.GetSystemDirectoryPath(), fileName);
+            var systemDirectoryFilePath = Path.Combine(_process.GetSystemDirectoryPath(), fileName);
 
-            if (File.Exists(systemFilePath))
+            if (File.Exists(systemDirectoryFilePath))
             {
-                return systemFilePath;
+                return systemDirectoryFilePath;
             }
 
             // Search the Windows directory
 
-            var windowsFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), fileName);
+            var windowsDirectoryFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), fileName);
 
-            if (File.Exists(windowsFilePath))
+            if (File.Exists(windowsDirectoryFilePath))
             {
-                return windowsFilePath;
+                return windowsDirectoryFilePath;
             }
 
-            // Search the current directory
+            // Search the root directory
 
-            var currentFilePath = Path.Combine(Directory.GetCurrentDirectory(), fileName);
-
-            if (File.Exists(currentFilePath))
+            if (_rootDirectoryPath is not null)
             {
-                return currentFilePath;
+                var rootDirectoryFilePath = Path.Combine(_rootDirectoryPath, fileName);
+
+                if (File.Exists(rootDirectoryFilePath))
+                {
+                    return rootDirectoryFilePath;
+                }
             }
 
             // Search the directories listed in the PATH environment variable

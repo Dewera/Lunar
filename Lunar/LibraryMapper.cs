@@ -163,6 +163,8 @@ namespace Lunar
             {
                 Executor.IgnoreExceptions(() => _processContext.Process.FreeMemory(DllBaseAddress));
 
+                DllBaseAddress = IntPtr.Zero;
+
                 throw;
             }
         }
@@ -257,9 +259,9 @@ namespace Lunar
         {
             // Call the entry point of any TLS callbacks
 
-            foreach (var tlsCallBackAddress in _peImage.TlsDirectory.GetTlsCallbacks().Select(tlsCallBack => DllBaseAddress + tlsCallBack.RelativeAddress))
+            foreach (var callbackAddress in _peImage.TlsDirectory.GetTlsCallbacks().Select(callBack => DllBaseAddress + callBack.RelativeAddress))
             {
-                _processContext.CallRoutine(tlsCallBackAddress, DllBaseAddress, reason, 0);
+                _processContext.CallRoutine(callbackAddress, DllBaseAddress, reason, 0);
             }
 
             if (_peImage.Headers.PEHeader!.AddressOfEntryPoint == 0)

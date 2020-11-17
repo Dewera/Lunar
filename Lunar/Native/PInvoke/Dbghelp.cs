@@ -21,5 +21,8 @@ namespace Lunar.Native.PInvoke
 
         [DllImport("dbghelp.dll")]
         internal static extern void SymSetOptions(SymbolOptions options);
+
+        [DllImport("dbghelp.dll", SetLastError = true)]
+        internal static extern bool SymUnloadModule(SafeProcessHandle processHandle, int dllBase);
     }
 }
