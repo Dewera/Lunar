@@ -15,10 +15,10 @@ bool __stdcall DllMain(void* moduleHandle, unsigned long reason, void* reserved)
 
             catch (...)
             {
-                // Ignore
+                return true;
             }
         }
     }
 
-    return true;
+    return false;
 }
