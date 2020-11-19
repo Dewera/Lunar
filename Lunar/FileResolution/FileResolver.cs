@@ -21,7 +21,16 @@ namespace Lunar.FileResolution
 
         internal string? ResolveFilePath(ActivationContext activationContext, string fileName)
         {
-            // Search the manifest
+            // Check for .local redirection
+
+            var localFilePath = Path.Combine(_process.GetProcessDirectoryPath(), ".local", fileName);
+
+            if (File.Exists(localFilePath))
+            {
+                return localFilePath;
+            }
+
+            // Check for SxS redirection
 
             var sxsFilePath = activationContext.ProbeManifest(fileName);
 
@@ -32,7 +41,7 @@ namespace Lunar.FileResolution
 
             // Search the directory from which the process was loaded
 
-            var processDirectoryFilePath = Path.Combine(Path.GetDirectoryName(_process.MainModule!.FileName)!, fileName);
+            var processDirectoryFilePath = Path.Combine(_process.GetProcessDirectoryPath(), fileName);
 
             if (File.Exists(processDirectoryFilePath))
             {
@@ -57,7 +66,16 @@ namespace Lunar.FileResolution
                 return windowsDirectoryFilePath;
             }
 
-            // Search the root directory
+            // Search the current directory
+
+            var currentDirectoryFilePath = Path.Combine(Directory.GetCurrentDirectory(), fileName);
+
+            if (File.Exists(currentDirectoryFilePath))
+            {
+                return currentDirectoryFilePath;
+            }
+
+            // Search the root directory of the DLL
 
             if (_rootDirectoryPath is not null)
             {

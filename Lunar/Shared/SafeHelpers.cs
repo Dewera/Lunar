@@ -14,15 +14,5 @@ namespace Lunar.Shared
         {
             return pointer >= 0 ? new IntPtr(pointer) : Unsafe.As<long, IntPtr>(ref pointer);
         }
-
-        internal static int Xor(int left, int right)
-        {
-            return (int) ((uint) left ^ (uint) right);
-        }
-
-        internal static int Rotr(int left, int right)
-        {
-            return (int) (((uint) left >> right) | ((uint) left << (32 - right)));
-        }
     }
 }

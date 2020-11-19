@@ -65,6 +65,11 @@ namespace Lunar.Extensions
             return isWow64Process ? Architecture.X86 : Architecture.X64;
         }
 
+        internal static string GetProcessDirectoryPath(this Process process)
+        {
+            return process.MainModule!.FileName!;
+        }
+
         internal static string GetSystemDirectoryPath(this Process process)
         {
             if (Environment.Is64BitOperatingSystem && process.GetArchitecture() == Architecture.X86)

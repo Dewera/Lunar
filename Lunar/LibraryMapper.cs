@@ -427,15 +427,15 @@ namespace Lunar
 
                 var exceptionDirectoryAddress = DllBaseAddress + exceptionTable.RelativeAddress;
 
-                var xoredAddress = SafeHelpers.Xor(exceptionDirectoryAddress.ToInt32(), sharedUserData.Cookie);
+                var xoredAddress = (uint) exceptionDirectoryAddress.ToInt32() ^ (uint) sharedUserData.Cookie;
 
                 var lowerCookieBits = sharedUserData.Cookie & 0x1F;
 
-                var rotatedAddress = SafeHelpers.Rotr(xoredAddress, lowerCookieBits);
+                var rotatedAddress = (xoredAddress >> lowerCookieBits) | (xoredAddress << (32 - lowerCookieBits));
 
                 // Initialise a new function table entry for the DLL
 
-                var newFunctionTableEntry = new InvertedFunctionTableEntry32(rotatedAddress, DllBaseAddress.ToInt32(), _peImage.Headers.PEHeader!.SizeOfImage, exceptionTable.HandlerCount);
+                var newFunctionTableEntry = new InvertedFunctionTableEntry32((int) rotatedAddress, DllBaseAddress.ToInt32(), _peImage.Headers.PEHeader!.SizeOfImage, exceptionTable.HandlerCount);
 
                 newFunctionTableEntryArray[insertionIndex] = newFunctionTableEntry;
 
