@@ -6,7 +6,6 @@ add_executable(Target Executables/Target.cpp)
 
 add_library(Basic SHARED Libraries/Basic.cpp)
 add_library(Exception SHARED Libraries/Exception.cpp)
-add_library(Manifest SHARED Libraries/Manifest.cpp)
 add_library(TlsCallback SHARED Libraries/TlsCallback.cpp)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -18,13 +17,12 @@ set(CMAKE_BUILD_TYPE Release)
 # /Oy - Suppresses creation of frame pointers on the call stack
 # /O2 - Maximum optimisation
 
-set(MSVC_COMPILE_FLAGS /GL /Oi /Oy /O2 -DUNICODE -D_UNICODE)
+set(MSVC_COMPILE_FLAGS /GL /Oi /Oy /O2)
 
 target_compile_options(Target PUBLIC ${MSVC_COMPILE_FLAGS})
 
 target_compile_options(Basic PUBLIC ${MSVC_COMPILE_FLAGS})
 target_compile_options(Exception PUBLIC ${MSVC_COMPILE_FLAGS})
-target_compile_options(Manifest PUBLIC ${MSVC_COMPILE_FLAGS})
 target_compile_options(TlsCallback PUBLIC ${MSVC_COMPILE_FLAGS})
 
 # /INCREMENTAL:NO    - Disables incremental linking
@@ -39,5 +37,4 @@ target_link_options(Target PUBLIC ${MSVC_LINKER_FLAGS})
 
 target_link_options(Basic PUBLIC ${MSVC_LINKER_FLAGS})
 target_link_options(Exception PUBLIC ${MSVC_LINKER_FLAGS})
-target_link_options(Manifest PUBLIC ${MSVC_LINKER_FLAGS})
 target_link_options(TlsCallback PUBLIC ${MSVC_LINKER_FLAGS})
