@@ -8,7 +8,7 @@ A lightweight native DLL mapping library that supports mapping directly from mem
 
 ### Notable features
 
-- Manual exception handler initialisation
+- Exception handler initialisation
 - Security cookie generation
 - SxS dependency resolution
 - TLS callback execution
@@ -18,7 +18,7 @@ A lightweight native DLL mapping library that supports mapping directly from mem
 
 ### Caveats
 
-- A PDB for ntdll.dll is downloaded and cached on disk by the library
+- The latest version of the PDB for ntdll.dll is downloaded and cached on disk by the library
 
 ---
 
