@@ -126,34 +126,44 @@ namespace Lunar
             {
                 LoadDependencies();
 
-                BuildImportAddressTable();
-
-                RelocateImage();
-
-                if (!_mappingFlags.HasFlag(MappingFlags.DiscardHeaders))
-                {
-                    MapHeaders();
-                }
-
-                MapSections();
-
-                InitialiseSecurityCookie();
-
-                InsertExceptionHandlers();
-
-                if (_mappingFlags.HasFlag(MappingFlags.SkipInitialisationRoutines))
-                {
-                    return;
-                }
-
                 try
                 {
-                    CallInitialisationRoutines(DllReason.ProcessAttach);
+                    BuildImportAddressTable();
+
+                    RelocateImage();
+
+                    if (!_mappingFlags.HasFlag(MappingFlags.DiscardHeaders))
+                    {
+                        MapHeaders();
+                    }
+
+                    MapSections();
+
+                    InitialiseSecurityCookie();
+
+                    InsertExceptionHandlers();
+
+                    if (_mappingFlags.HasFlag(MappingFlags.SkipInitialisationRoutines))
+                    {
+                        return;
+                    }
+
+                    try
+                    {
+                        CallInitialisationRoutines(DllReason.ProcessAttach);
+                    }
+
+                    catch
+                    {
+                        Executor.IgnoreExceptions(RemoveExceptionHandlers);
+
+                        throw;
+                    }
                 }
 
                 catch
                 {
-                    Executor.IgnoreExceptions(RemoveExceptionHandlers);
+                    Executor.IgnoreExceptions(FreeDependencies);
 
                     throw;
                 }
@@ -181,41 +191,35 @@ namespace Lunar
 
             try
             {
-                if (!_mappingFlags.HasFlag(MappingFlags.SkipInitialisationRoutines))
+                try
                 {
                     try
                     {
-                        CallInitialisationRoutines(DllReason.ProcessDetach);
+                        try
+                        {
+                            if (!_mappingFlags.HasFlag(MappingFlags.SkipInitialisationRoutines))
+                            {
+                                CallInitialisationRoutines(DllReason.ProcessDetach);
+                            }
+                        }
+
+                        catch
+                        {
+                            Executor.IgnoreExceptions(RemoveExceptionHandlers);
+
+                            throw;
+                        }
+
+                        RemoveExceptionHandlers();
                     }
 
                     catch
                     {
-                        Executor.IgnoreExceptions(RemoveExceptionHandlers);
-
                         Executor.IgnoreExceptions(FreeDependencies);
-
-                        Executor.IgnoreExceptions(() => _processContext.Process.FreeMemory(DllBaseAddress));
 
                         throw;
                     }
-                }
 
-                try
-                {
-                    RemoveExceptionHandlers();
-                }
-
-                catch
-                {
-                    Executor.IgnoreExceptions(FreeDependencies);
-
-                    Executor.IgnoreExceptions(() => _processContext.Process.FreeMemory(DllBaseAddress));
-
-                    throw;
-                }
-
-                try
-                {
                     FreeDependencies();
                 }
 
@@ -247,7 +251,7 @@ namespace Lunar
 
                     if (functionAddress == IntPtr.Zero)
                     {
-                        throw new ApplicationException("Failed to find the address of the function in a module");
+                        throw new ApplicationException("Failed to find the address of a function in a module");
                     }
 
                     MemoryMarshal.Write(_dllBytes.Span.Slice(function.Offset), ref functionAddress);
@@ -289,14 +293,14 @@ namespace Lunar
 
                 if (routineAddress == IntPtr.Zero)
                 {
-                    throw new ApplicationException("Failed to find the address of the function in a module");
+                    throw new ApplicationException("Failed to find the address of a function in a module");
                 }
 
                 var dependencyAddress = _processContext.GetModuleAddress(dependency.Name);
 
                 if (!_processContext.CallRoutine<bool>(routineAddress, dependencyAddress))
                 {
-                    throw new ApplicationException("Failed to free a dependency in the process");
+                    throw new ApplicationException("Failed to free a dependency from the process");
                 }
             }
 
@@ -559,12 +563,12 @@ namespace Lunar
 
                     if (routineAddress == IntPtr.Zero)
                     {
-                        throw new ApplicationException("Failed to find the address of the function in a module");
+                        throw new ApplicationException("Failed to find the address of a function in a module");
                     }
 
                     if (_processContext.CallRoutine<IntPtr>(routineAddress, dependencyFilePathBytesAddress) == IntPtr.Zero)
                     {
-                        throw new ApplicationException("Failed to load the dependency in the process");
+                        throw new ApplicationException("Failed to load a dependency into the process");
                     }
                 }
 
