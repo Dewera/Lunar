@@ -48,6 +48,18 @@ namespace Lunar.FileResolution
                 return processDirectoryFilePath;
             }
 
+            // Search the root directory of the DLL
+
+            if (_rootDirectoryPath is not null)
+            {
+                var rootDirectoryFilePath = Path.Combine(_rootDirectoryPath, fileName);
+
+                if (File.Exists(rootDirectoryFilePath))
+                {
+                    return rootDirectoryFilePath;
+                }
+            }
+
             // Search the System directory
 
             var systemDirectoryFilePath = Path.Combine(_process.GetSystemDirectoryPath(), fileName);
@@ -73,18 +85,6 @@ namespace Lunar.FileResolution
             if (File.Exists(currentDirectoryFilePath))
             {
                 return currentDirectoryFilePath;
-            }
-
-            // Search the root directory of the DLL
-
-            if (_rootDirectoryPath is not null)
-            {
-                var rootDirectoryFilePath = Path.Combine(_rootDirectoryPath, fileName);
-
-                if (File.Exists(rootDirectoryFilePath))
-                {
-                    return rootDirectoryFilePath;
-                }
             }
 
             // Search the directories listed in the PATH environment variable
