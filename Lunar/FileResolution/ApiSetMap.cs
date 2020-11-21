@@ -1,40 +1,43 @@
 ﻿using System;
-using System.Diagnostics;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Text;
-using Lunar.Extensions;
-using Lunar.Native.Enumerations;
+using Lunar.Native.PInvoke;
 using Lunar.Native.Structures;
 using Lunar.Shared;
 
-namespace Lunar.Remote
+namespace Lunar.FileResolution
 {
     internal sealed class ApiSetMap
     {
         private readonly IntPtr _address;
 
-        private readonly Process _process;
+        private readonly IDictionary<int, string> _mappingCache;
 
-        internal ApiSetMap(Process process)
+        internal ApiSetMap()
         {
-            _address = GetApiSetMapAddress(process);
+            _address = GetApiSetMapAddress();
 
-            _process = process;
+            _mappingCache = new Dictionary<int, string>();
         }
 
         internal string? ResolveApiSet(string apiSetName)
         {
             // Read the namespace
 
-            var @namespace = _process.ReadStructure<ApiSetNamespace>(_address);
+            var @namespace = Marshal.PtrToStructure<ApiSetNamespace>(_address);
 
             // Create a hash for the API set name, skipping the patch number and suffix
 
             var charactersToHash = apiSetName[..apiSetName.LastIndexOf("-", StringComparison.Ordinal)];
 
             var apiSetNameHash = charactersToHash.Aggregate(0, (currentHash, character) => currentHash * @namespace.HashFactor + char.ToLower(character));
+
+            if (_mappingCache.ContainsKey(apiSetNameHash))
+            {
+                return _mappingCache[apiSetNameHash];
+            }
 
             // Search the namespace for the corresponding hash entry
 
@@ -50,7 +53,7 @@ namespace Lunar.Remote
 
                 var hashEntryAddress = _address + @namespace.HashOffset + Unsafe.SizeOf<ApiSetHashEntry>() * middle;
 
-                var hashEntry = _process.ReadStructure<ApiSetHashEntry>(hashEntryAddress);
+                var hashEntry = Marshal.PtrToStructure<ApiSetHashEntry>(hashEntryAddress);
 
                 if (apiSetNameHash == hashEntry.Hash)
                 {
@@ -58,19 +61,23 @@ namespace Lunar.Remote
 
                     var namespaceEntryAddress = _address + @namespace.EntryOffset + Unsafe.SizeOf<ApiSetNamespaceEntry>() * hashEntry.Index;
 
-                    var namespaceEntry = _process.ReadStructure<ApiSetNamespaceEntry>(namespaceEntryAddress);
+                    var namespaceEntry = Marshal.PtrToStructure<ApiSetNamespaceEntry>(namespaceEntryAddress);
 
                     // Read the first value entry that the namespace entry maps to
 
                     var valueEntryAddress = _address + namespaceEntry.ValueOffset;
 
-                    var valueEntry = _process.ReadStructure<ApiSetValueEntry>(valueEntryAddress);
+                    var valueEntry = Marshal.PtrToStructure<ApiSetValueEntry>(valueEntryAddress);
 
                     // Read the value entry name
 
                     var valueEntryNameAddress = _address + valueEntry.ValueOffset;
 
-                    return Encoding.Unicode.GetString(_process.ReadArray<byte>(valueEntryNameAddress, valueEntry.ValueCount));
+                    var valueEntryName = Marshal.PtrToStringUni(valueEntryNameAddress, valueEntry.ValueCount / sizeof(char));
+
+                    _mappingCache.Add(apiSetNameHash, valueEntryName);
+
+                    return valueEntryName;
                 }
 
                 if ((uint) apiSetNameHash < (uint) hashEntry.Hash)
@@ -87,46 +94,20 @@ namespace Lunar.Remote
             return null;
         }
 
-        private static IntPtr GetApiSetMapAddress(Process process)
+        private static IntPtr GetApiSetMapAddress()
         {
-            if (process.GetArchitecture() == Architecture.X86)
+            var pebAddress = Ntdll.RtlGetCurrentPeb();
+
+            if (Environment.Is64BitProcess)
             {
-                IntPtr pebAddress;
-
-                if (Environment.Is64BitOperatingSystem)
-                {
-                    // Query the process for the address of its WOW64 PEB
-
-                    pebAddress = process.QueryInformation<IntPtr>(ProcessInformationType.Wow64Information);
-                }
-
-                else
-                {
-                    // Query the process for its basic information
-
-                    var basicInformation = process.QueryInformation<ProcessBasicInformation32>(ProcessInformationType.BasicInformation);
-
-                    pebAddress = SafeHelpers.CreateSafePointer(basicInformation.PebBaseAddress);
-                }
-
-                // Read the PEB
-
-                var peb = process.ReadStructure<Peb32>(pebAddress);
+                var peb = Marshal.PtrToStructure<Peb64>(pebAddress);
 
                 return SafeHelpers.CreateSafePointer(peb.ApiSetMap);
             }
 
             else
             {
-                // Query the process for its basic information
-
-                var basicInformation = process.QueryInformation<ProcessBasicInformation64>(ProcessInformationType.BasicInformation);
-
-                var pebAddress = SafeHelpers.CreateSafePointer(basicInformation.PebBaseAddress);
-
-                // Read the PEB
-
-                var peb = process.ReadStructure<Peb64>(pebAddress);
+                var peb = Marshal.PtrToStructure<Peb32>(pebAddress);
 
                 return SafeHelpers.CreateSafePointer(peb.ApiSetMap);
             }

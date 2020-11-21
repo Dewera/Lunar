@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using Lunar.Assembler;
 using Lunar.Assembler.Structures;
 using Lunar.Extensions;
+using Lunar.FileResolution;
 using Lunar.Remote.Structures;
 
 namespace Lunar.Remote
@@ -22,7 +23,7 @@ namespace Lunar.Remote
 
         internal ProcessContext(Process process)
         {
-            _apiSetMap = new ApiSetMap(process);
+            _apiSetMap = new ApiSetMap();
 
             _loader = new Loader(process);
 

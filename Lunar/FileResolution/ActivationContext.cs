@@ -12,7 +12,7 @@ namespace Lunar.FileResolution
 {
     internal sealed class ActivationContext
     {
-        private readonly ILookup<int, ManifestDirectory> _directoryLookup;
+        private readonly ILookup<int, ManifestDirectory> _directoryCache;
 
         private readonly XDocument? _manifest;
 
@@ -20,7 +20,7 @@ namespace Lunar.FileResolution
 
         internal ActivationContext(XDocument? manifest, Process process)
         {
-            _directoryLookup = GetManifestDirectories(process).ToLookup(directory => directory.Hash);
+            _directoryCache = GetManifestDirectories(process).ToLookup(directory => directory.Hash);
 
             _manifest = manifest;
 
@@ -69,14 +69,14 @@ namespace Lunar.FileResolution
 
                 var dependencyHash = string.Join(string.Empty, architecture, name.ToLower(), token).GetHashCode();
 
-                // Query the lookup for a matching list of directories
+                // Query the cache for a matching list of directories
 
-                if (!_directoryLookup.Contains(dependencyHash))
+                if (!_directoryCache.Contains(dependencyHash))
                 {
                     continue;
                 }
 
-                var matchingDirectories = _directoryLookup[dependencyHash].Where(directory => directory.Language == language);
+                var matchingDirectories = _directoryCache[dependencyHash].Where(directory => directory.Language.Equals(language, StringComparison.OrdinalIgnoreCase));
 
                 // Look for the directory that holds the dependency
 

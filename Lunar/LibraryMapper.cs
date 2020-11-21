@@ -251,7 +251,7 @@ namespace Lunar
 
                     if (functionAddress == IntPtr.Zero)
                     {
-                        throw new ApplicationException("Failed to find the address of a function in a module");
+                        throw new ApplicationException("Failed to resolve the address of a function in a module");
                     }
 
                     MemoryMarshal.Write(_dllBytes.Span.Slice(function.Offset), ref functionAddress);
@@ -293,10 +293,15 @@ namespace Lunar
 
                 if (routineAddress == IntPtr.Zero)
                 {
-                    throw new ApplicationException("Failed to find the address of a function in a module");
+                    throw new ApplicationException("Failed to resolve the address of a function in a module");
                 }
 
                 var dependencyAddress = _processContext.GetModuleAddress(dependency.Name);
+
+                if (dependencyAddress == IntPtr.Zero)
+                {
+                    throw new ApplicationException("Failed to resolve the address of a module in the process");
+                }
 
                 if (!_processContext.CallRoutine<bool>(routineAddress, dependencyAddress))
                 {
@@ -365,7 +370,14 @@ namespace Lunar
         {
             // Read the function table
 
-            var functionTableAddress = _processContext.GetModuleAddress("ntdll.dll") + _symbolHandler.GetSymbolAddress("LdrpInvertedFunctionTable");
+            var ntdllAddress = _processContext.GetModuleAddress("ntdll.dll");
+
+            if (ntdllAddress == IntPtr.Zero)
+            {
+                throw new ApplicationException("Failed to resolve the address of a module in the process");
+            }
+
+            var functionTableAddress = ntdllAddress + _symbolHandler.GetSymbolAddress("LdrpInvertedFunctionTable");
 
             var functionTable = _processContext.Process.ReadStructure<InvertedFunctionTable>(functionTableAddress);
 
@@ -563,7 +575,7 @@ namespace Lunar
 
                     if (routineAddress == IntPtr.Zero)
                     {
-                        throw new ApplicationException("Failed to find the address of a function in a module");
+                        throw new ApplicationException("Failed to resolve the address of a function in a module");
                     }
 
                     if (_processContext.CallRoutine<IntPtr>(routineAddress, dependencyFilePathBytesAddress) == IntPtr.Zero)
@@ -694,7 +706,14 @@ namespace Lunar
         {
             // Read the function table
 
-            var functionTableAddress = _processContext.GetModuleAddress("ntdll.dll") + _symbolHandler.GetSymbolAddress("LdrpInvertedFunctionTable");
+            var ntdllAddress = _processContext.GetModuleAddress("ntdll.dll");
+
+            if (ntdllAddress == IntPtr.Zero)
+            {
+                throw new ApplicationException("Failed to resolve the address of a module in the process");
+            }
+
+            var functionTableAddress = ntdllAddress + _symbolHandler.GetSymbolAddress("LdrpInvertedFunctionTable");
 
             var functionTable = _processContext.Process.ReadStructure<InvertedFunctionTable>(functionTableAddress);
 

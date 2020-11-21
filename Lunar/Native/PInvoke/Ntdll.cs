@@ -14,6 +14,9 @@ namespace Lunar.Native.PInvoke
         internal static extern NtStatus NtQueryInformationProcess(SafeProcessHandle processHandle, ProcessInformationType informationType, out byte information, int informationSize, out int returnLength);
 
         [DllImport("ntdll.dll")]
+        internal static extern IntPtr RtlGetCurrentPeb();
+
+        [DllImport("ntdll.dll")]
         internal static extern int RtlNtStatusToDosError(NtStatus status);
     }
 }

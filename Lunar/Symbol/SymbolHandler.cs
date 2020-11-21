@@ -140,11 +140,11 @@ namespace Lunar.Symbol
 
             using var webClient = new WebClient();
 
-            webClient.DownloadProgressChanged += (_, eventArgs) =>
+            webClient.DownloadProgressChanged += (_, eventArguments) =>
             {
-                var progress = eventArgs.ProgressPercentage / 2;
+                var progress = eventArguments.ProgressPercentage / 2;
 
-                Console.Write($"\rDownloading required files [{pdbData.Path}] - [{new string('=', progress)}{new string(' ', 50 - progress)}] - {eventArgs.ProgressPercentage}%");
+                Console.Write($"\rDownloading required files [{pdbData.Path}] - [{new string('=', progress)}{new string(' ', 50 - progress)}] - {eventArguments.ProgressPercentage}%");
             };
 
             var pdbUri = new Uri($"https://msdl.microsoft.com/download/symbols/{pdbData.Path}/{pdbData.Guid:N}{pdbData.Age}/{pdbData.Path}");

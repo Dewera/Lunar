@@ -39,15 +39,6 @@ namespace Lunar.FileResolution
                 return sxsFilePath;
             }
 
-            // Search the directory from which the process was loaded
-
-            var processDirectoryFilePath = Path.Combine(_process.GetProcessDirectoryPath(), fileName);
-
-            if (File.Exists(processDirectoryFilePath))
-            {
-                return processDirectoryFilePath;
-            }
-
             // Search the root directory of the DLL
 
             if (_rootDirectoryPath is not null)
@@ -58,6 +49,15 @@ namespace Lunar.FileResolution
                 {
                     return rootDirectoryFilePath;
                 }
+            }
+
+            // Search the directory from which the process was loaded
+
+            var processDirectoryFilePath = Path.Combine(_process.GetProcessDirectoryPath(), fileName);
+
+            if (File.Exists(processDirectoryFilePath))
+            {
+                return processDirectoryFilePath;
             }
 
             // Search the System directory
