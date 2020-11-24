@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 using Lunar.Native.Enumerations;
 using Lunar.Native.PInvoke;
 
@@ -116,6 +117,18 @@ namespace Lunar.Extensions
             return MemoryMarshal.Cast<byte, T>(arrayBytes);
         }
 
+        internal static string ReadString(this Process process, IntPtr address, int size)
+        {
+            Span<byte> stringBytes = stackalloc byte[size];
+
+            if (!Kernel32.ReadProcessMemory(process.SafeHandle, address, out stringBytes[0], stringBytes.Length, out _))
+            {
+                throw new Win32Exception();
+            }
+
+            return Encoding.Unicode.GetString(stringBytes);
+        }
+
         internal static T ReadStructure<T>(this Process process, IntPtr address) where T : unmanaged
         {
             Span<byte> structureBytes = stackalloc byte[Unsafe.SizeOf<T>()];
@@ -145,6 +158,26 @@ namespace Lunar.Extensions
             finally
             {
                 process.ProtectMemory(address, arrayBytes.Length, oldProtectionType);
+            }
+        }
+
+        internal static void WriteString(this Process process, IntPtr address, string @string)
+        {
+            var stringBytes = Encoding.Unicode.GetBytes(@string);
+
+            var oldProtectionType = process.ProtectMemory(address, stringBytes.Length, ProtectionType.ReadWrite);
+
+            try
+            {
+                if (!Kernel32.WriteProcessMemory(process.SafeHandle, address, in stringBytes[0], stringBytes.Length, out _))
+                {
+                    throw new Win32Exception();
+                }
+            }
+
+            finally
+            {
+                process.ProtectMemory(address, stringBytes.Length, oldProtectionType);
             }
         }
 

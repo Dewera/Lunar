@@ -30,8 +30,6 @@ namespace Lunar.Remote
             _moduleCache = new Dictionary<string, Module>(StringComparer.OrdinalIgnoreCase);
 
             Process = process;
-
-            Refresh();
         }
 
         internal void CallRoutine(IntPtr routineAddress, params dynamic[] arguments)
@@ -128,7 +126,7 @@ namespace Lunar.Remote
         {
             var containingModule = GetModule(moduleName);
 
-            var function = containingModule?.PeImage.Value.ExportDirectory.GetExportedFunction(functionName);
+            var function = containingModule?.PeImage.ExportDirectory.GetExportedFunction(functionName);
 
             if (function is null)
             {
@@ -142,7 +140,7 @@ namespace Lunar.Remote
         {
             var containingModule = GetModule(moduleName);
 
-            var function = containingModule?.PeImage.Value.ExportDirectory.GetExportedFunction(functionOrdinal);
+            var function = containingModule?.PeImage.ExportDirectory.GetExportedFunction(functionOrdinal);
 
             if (function is null)
             {
@@ -157,14 +155,14 @@ namespace Lunar.Remote
             return GetModule(moduleName)?.Address ?? IntPtr.Zero;
         }
 
+        internal void NotifyModuleLoad(Module module)
+        {
+            _moduleCache.TryAdd(module.Name, module);
+        }
+
         internal void Refresh()
         {
             _moduleCache.Clear();
-
-            foreach (var module in _loader.GetModules())
-            {
-                _moduleCache.Add(module.Name, module);
-            }
         }
 
         internal string ResolveModuleName(string moduleName)
@@ -181,7 +179,21 @@ namespace Lunar.Remote
         {
             moduleName = ResolveModuleName(moduleName);
 
-            return _moduleCache.ContainsKey(moduleName) ? _moduleCache[moduleName] : null;
+            if (_moduleCache.TryGetValue(moduleName, out var module))
+            {
+                return module;
+            }
+
+            module = _loader.GetModule(moduleName);
+
+            if (module is null)
+            {
+                return null;
+            }
+
+            _moduleCache.Add(moduleName, module);
+
+            return module;
         }
 
         private IntPtr ResolveForwardedFunction(string forwarderString)
@@ -197,7 +209,7 @@ namespace Lunar.Remote
                     return IntPtr.Zero;
                 }
 
-                var forwardedFunction = forwardedData[1].StartsWith("#") ? forwardedModule.PeImage.Value.ExportDirectory.GetExportedFunction(int.Parse(forwardedData[1].Replace("#", string.Empty))) : forwardedModule.PeImage.Value.ExportDirectory.GetExportedFunction(forwardedData[1]);
+                var forwardedFunction = forwardedData[1].StartsWith("#") ? forwardedModule.PeImage.ExportDirectory.GetExportedFunction(int.Parse(forwardedData[1].Replace("#", string.Empty))) : forwardedModule.PeImage.ExportDirectory.GetExportedFunction(forwardedData[1]);
 
                 if (forwardedFunction is null)
                 {

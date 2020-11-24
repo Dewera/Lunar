@@ -23,11 +23,11 @@ namespace Lunar.FileResolution
         {
             // Check for .local redirection
 
-            var localFilePath = Path.Combine(_process.GetProcessDirectoryPath(), ".local", fileName);
+            var dotLocalFilePath = Path.Combine(_process.GetProcessDirectoryPath(), ".local", fileName);
 
-            if (File.Exists(localFilePath))
+            if (File.Exists(dotLocalFilePath))
             {
-                return localFilePath;
+                return dotLocalFilePath;
             }
 
             // Check for SxS redirection

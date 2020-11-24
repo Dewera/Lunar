@@ -1,9 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Text;
 using Lunar.Extensions;
 using Lunar.Native.Enumerations;
 using Lunar.Native.Structures;
@@ -26,7 +24,7 @@ namespace Lunar.Remote
             _process = process;
         }
 
-        internal IEnumerable<Module> GetModules()
+        internal Module? GetModule(string moduleName)
         {
             if (_process.GetArchitecture() == Architecture.X86)
             {
@@ -46,22 +44,25 @@ namespace Lunar.Remote
 
                     var entryNameAddress = SafeHelpers.CreateSafePointer(entry.BaseDllName.Buffer);
 
-                    var entryName = Encoding.Unicode.GetString(_process.ReadArray<byte>(entryNameAddress, entry.BaseDllName.Length));
+                    var entryName = _process.ReadString(entryNameAddress, entry.BaseDllName.Length);
 
-                    // Read the file path of the entry
-
-                    var entryFilePathAddress = SafeHelpers.CreateSafePointer(entry.FullDllName.Buffer);
-
-                    var entryFilePath = Encoding.Unicode.GetString(_process.ReadArray<byte>(entryFilePathAddress, entry.FullDllName.Length));
-
-                    if (Environment.Is64BitOperatingSystem)
+                    if (moduleName.Equals(entryName, StringComparison.OrdinalIgnoreCase))
                     {
-                        // Redirect the file path to the WOW64 directory
+                        // Read the file path of the entry
 
-                        entryFilePath = entryFilePath.Replace("System32", "SysWOW64", StringComparison.OrdinalIgnoreCase);
+                        var entryFilePathAddress = SafeHelpers.CreateSafePointer(entry.FullDllName.Buffer);
+
+                        var entryFilePath = _process.ReadString(entryFilePathAddress, entry.FullDllName.Length);
+
+                        if (Environment.Is64BitOperatingSystem)
+                        {
+                            // Redirect the file path to the WOW64 directory
+
+                            entryFilePath = entryFilePath.Replace("System32", "SysWOW64", StringComparison.OrdinalIgnoreCase);
+                        }
+
+                        return new Module(SafeHelpers.CreateSafePointer(entry.DllBase), entryName, new PeImage(File.ReadAllBytes(entryFilePath)));
                     }
-
-                    yield return new Module(SafeHelpers.CreateSafePointer(entry.DllBase), entryName, new Lazy<PeImage>(() => new PeImage(File.ReadAllBytes(entryFilePath))));
 
                     if (currentEntryAddress.ToInt32() == loaderData.InLoadOrderModuleList.Blink)
                     {
@@ -90,15 +91,18 @@ namespace Lunar.Remote
 
                     var entryNameAddress = SafeHelpers.CreateSafePointer(entry.BaseDllName.Buffer);
 
-                    var entryName = Encoding.Unicode.GetString(_process.ReadArray<byte>(entryNameAddress, entry.BaseDllName.Length));
+                    var entryName = _process.ReadString(entryNameAddress, entry.BaseDllName.Length);
 
-                    // Read the file path of the entry
+                    if (moduleName.Equals(entryName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Read the file path of the entry
 
-                    var entryFilePathAddress = SafeHelpers.CreateSafePointer(entry.FullDllName.Buffer);
+                        var entryFilePathAddress = SafeHelpers.CreateSafePointer(entry.FullDllName.Buffer);
 
-                    var entryFilePath = Encoding.Unicode.GetString(_process.ReadArray<byte>(entryFilePathAddress, entry.FullDllName.Length));
+                        var entryFilePath = _process.ReadString(entryFilePathAddress, entry.FullDllName.Length);
 
-                    yield return new Module(SafeHelpers.CreateSafePointer(entry.DllBase), entryName, new Lazy<PeImage>(() => new PeImage(File.ReadAllBytes(entryFilePath))));
+                        return new Module(SafeHelpers.CreateSafePointer(entry.DllBase), entryName, new PeImage(File.ReadAllBytes(entryFilePath)));
+                    }
 
                     if (currentEntryAddress.ToInt64() == loaderData.InLoadOrderModuleList.Blink)
                     {
@@ -108,6 +112,8 @@ namespace Lunar.Remote
                     currentEntryAddress = SafeHelpers.CreateSafePointer(entry.InLoadOrderLinks.Flink);
                 }
             }
+
+            return null;
         }
 
         private static IntPtr GetLoaderAddress(Process process)

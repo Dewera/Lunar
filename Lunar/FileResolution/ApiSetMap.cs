@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -13,13 +12,9 @@ namespace Lunar.FileResolution
     {
         private readonly IntPtr _address;
 
-        private readonly IDictionary<int, string> _mappingCache;
-
         internal ApiSetMap()
         {
             _address = GetApiSetMapAddress();
-
-            _mappingCache = new Dictionary<int, string>();
         }
 
         internal string? ResolveApiSet(string apiSetName)
@@ -33,11 +28,6 @@ namespace Lunar.FileResolution
             var charactersToHash = apiSetName[..apiSetName.LastIndexOf("-", StringComparison.Ordinal)];
 
             var apiSetNameHash = charactersToHash.Aggregate(0, (currentHash, character) => currentHash * @namespace.HashFactor + char.ToLower(character));
-
-            if (_mappingCache.ContainsKey(apiSetNameHash))
-            {
-                return _mappingCache[apiSetNameHash];
-            }
 
             // Search the namespace for the corresponding hash entry
 
@@ -74,8 +64,6 @@ namespace Lunar.FileResolution
                     var valueEntryNameAddress = _address + valueEntry.ValueOffset;
 
                     var valueEntryName = Marshal.PtrToStringUni(valueEntryNameAddress, valueEntry.ValueCount / sizeof(char));
-
-                    _mappingCache.Add(apiSetNameHash, valueEntryName);
 
                     return valueEntryName;
                 }

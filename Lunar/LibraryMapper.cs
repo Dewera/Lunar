@@ -15,6 +15,7 @@ using Lunar.Native.Enumerations;
 using Lunar.Native.Structures;
 using Lunar.PortableExecutable;
 using Lunar.Remote;
+using Lunar.Remote.Structures;
 using Lunar.Shared;
 using Lunar.Symbol;
 
@@ -552,22 +553,22 @@ namespace Lunar
 
             foreach (var dependency in _peImage.ImportDirectory.GetImportDescriptors())
             {
+                var dependencyName = _processContext.ResolveModuleName(dependency.Name);
+
                 // Write the file path of the dependency into the process
 
-                var dependencyFilePath = _fileResolver.ResolveFilePath(activationContext, _processContext.ResolveModuleName(dependency.Name));
+                var dependencyFilePath = _fileResolver.ResolveFilePath(activationContext, dependencyName);
 
                 if (dependencyFilePath is null)
                 {
                     throw new FileNotFoundException("Failed to resolve the file path of a dependency");
                 }
 
-                var dependencyFilePathBytes = Encoding.Unicode.GetBytes(dependencyFilePath);
-
-                var dependencyFilePathBytesAddress = _processContext.Process.AllocateMemory(dependencyFilePathBytes.Length);
+                var dependencyFilePathAddress = _processContext.Process.AllocateMemory(Encoding.Unicode.GetByteCount(dependencyFilePath));
 
                 try
                 {
-                    _processContext.Process.WriteArray(dependencyFilePathBytesAddress, dependencyFilePathBytes.AsSpan());
+                    _processContext.Process.WriteString(dependencyFilePathAddress, dependencyFilePath);
 
                     // Load the dependency using the Windows loader
 
@@ -578,19 +579,21 @@ namespace Lunar
                         throw new ApplicationException("Failed to resolve the address of a function in a module");
                     }
 
-                    if (_processContext.CallRoutine<IntPtr>(routineAddress, dependencyFilePathBytesAddress) == IntPtr.Zero)
+                    var moduleAddress = _processContext.CallRoutine<IntPtr>(routineAddress, dependencyFilePathAddress);
+
+                    if (moduleAddress == IntPtr.Zero)
                     {
                         throw new ApplicationException("Failed to load a dependency into the process");
                     }
+
+                    _processContext.NotifyModuleLoad(new Module(moduleAddress, dependencyName, new PeImage(File.ReadAllBytes(dependencyFilePath))));
                 }
 
                 finally
                 {
-                    _processContext.Process.FreeMemory(dependencyFilePathBytesAddress);
+                    _processContext.Process.FreeMemory(dependencyFilePathAddress);
                 }
             }
-
-            _processContext.Refresh();
         }
 
         private void MapHeaders()
