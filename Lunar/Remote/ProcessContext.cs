@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Lunar.Assembler;
-using Lunar.Assembler.Structures;
+using Lunar.Assembly;
+using Lunar.Assembly.Structures;
 using Lunar.Extensions;
 using Lunar.FileResolution;
+using Lunar.PortableExecutable;
 using Lunar.Remote.Structures;
 
 namespace Lunar.Remote
@@ -21,6 +23,8 @@ namespace Lunar.Remote
 
         private readonly IDictionary<string, Module> _moduleCache;
 
+        private readonly SymbolHandler _symbolHandler;
+
         internal ProcessContext(Process process)
         {
             _apiSetMap = new ApiSetMap();
@@ -28,6 +32,8 @@ namespace Lunar.Remote
             _loader = new Loader(process);
 
             _moduleCache = new Dictionary<string, Module>(StringComparer.OrdinalIgnoreCase);
+
+            _symbolHandler = new SymbolHandler(Path.Combine(process.GetSystemDirectoryPath(), "ntdll.dll"));
 
             Process = process;
         }
@@ -42,14 +48,14 @@ namespace Lunar.Remote
             {
                 var callDescriptor = new CallDescriptor32(routineAddress, Array.ConvertAll(arguments, argument => (int) argument), IntPtr.Zero);
 
-                shellcodeBytes = CallAssembler.AssembleCall32(callDescriptor);
+                shellcodeBytes = Assembler.AssembleCall32(callDescriptor);
             }
 
             else
             {
                 var routineDescriptor = new CallDescriptor64(routineAddress, Array.ConvertAll(arguments, argument => (long) argument), IntPtr.Zero);
 
-                shellcodeBytes = CallAssembler.AssembleCall64(routineDescriptor);
+                shellcodeBytes = Assembler.AssembleCall64(routineDescriptor);
             }
 
             // Write the shellcode bytes into the process
@@ -83,14 +89,14 @@ namespace Lunar.Remote
             {
                 var callDescriptor = new CallDescriptor32(routineAddress, Array.ConvertAll(arguments, argument => (int) argument), returnAddress);
 
-                shellcodeBytes = CallAssembler.AssembleCall32(callDescriptor);
+                shellcodeBytes = Assembler.AssembleCall32(callDescriptor);
             }
 
             else
             {
                 var routineDescriptor = new CallDescriptor64(routineAddress, Array.ConvertAll(arguments, argument => (long) argument), returnAddress);
 
-                shellcodeBytes = CallAssembler.AssembleCall64(routineDescriptor);
+                shellcodeBytes = Assembler.AssembleCall64(routineDescriptor);
             }
 
             try
@@ -122,47 +128,54 @@ namespace Lunar.Remote
             }
         }
 
+        internal void ClearModuleCache()
+        {
+            _moduleCache.Clear();
+        }
+
         internal IntPtr GetFunctionAddress(string moduleName, string functionName)
         {
             var containingModule = GetModule(moduleName);
 
-            var function = containingModule?.PeImage.ExportDirectory.GetExportedFunction(functionName);
+            var function = containingModule.PeImage.ExportDirectory.GetExportedFunction(functionName);
 
             if (function is null)
             {
-                return IntPtr.Zero;
+                throw new ApplicationException($"Failed to find the function {functionName} in the module {moduleName}");
             }
 
-            return function.ForwarderString is null ? containingModule!.Address + function.RelativeAddress : ResolveForwardedFunction(function.ForwarderString);
+            return function.ForwarderString is null ? containingModule.Address + function.RelativeAddress : ResolveForwardedFunction(function.ForwarderString);
         }
 
         internal IntPtr GetFunctionAddress(string moduleName, int functionOrdinal)
         {
             var containingModule = GetModule(moduleName);
 
-            var function = containingModule?.PeImage.ExportDirectory.GetExportedFunction(functionOrdinal);
+            var function = containingModule.PeImage.ExportDirectory.GetExportedFunction(functionOrdinal);
 
             if (function is null)
             {
-                return IntPtr.Zero;
+                throw new ApplicationException($"Failed to find the function #{functionOrdinal} in the module {moduleName}");
             }
 
-            return function.ForwarderString is null ? containingModule!.Address + function.RelativeAddress : ResolveForwardedFunction(function.ForwarderString);
+            return function.ForwarderString is null ? containingModule.Address + function.RelativeAddress : ResolveForwardedFunction(function.ForwarderString);
         }
 
         internal IntPtr GetModuleAddress(string moduleName)
         {
-            return GetModule(moduleName)?.Address ?? IntPtr.Zero;
+            return GetModule(moduleName).Address;
         }
 
-        internal void NotifyModuleLoad(Module module)
+        internal IntPtr GetNtdllSymbolAddress(string symbolName)
         {
-            _moduleCache.TryAdd(module.Name, module);
+            return GetModule("ntdll.dll").Address + _symbolHandler.GetSymbol(symbolName).RelativeAddress;
         }
 
-        internal void Refresh()
+        internal void NotifyModuleLoad(IntPtr moduleAddress, string moduleFilePath)
         {
-            _moduleCache.Clear();
+            var moduleName = Path.GetFileName(moduleFilePath);
+
+            _moduleCache.TryAdd(moduleName, new Module(moduleAddress, Path.GetFileName(moduleFilePath), new PeImage(File.ReadAllBytes(moduleFilePath))));
         }
 
         internal string ResolveModuleName(string moduleName)
@@ -175,7 +188,7 @@ namespace Lunar.Remote
             return moduleName;
         }
 
-        private Module? GetModule(string moduleName)
+        private Module GetModule(string moduleName)
         {
             moduleName = ResolveModuleName(moduleName);
 
@@ -188,7 +201,7 @@ namespace Lunar.Remote
 
             if (module is null)
             {
-                return null;
+                throw new ApplicationException($"Failed to find the module {moduleName} in the process");
             }
 
             _moduleCache.Add(moduleName, module);
@@ -204,16 +217,11 @@ namespace Lunar.Remote
 
                 var forwardedModule = GetModule($"{forwardedData[0]}.dll");
 
-                if (forwardedModule is null)
-                {
-                    return IntPtr.Zero;
-                }
-
                 var forwardedFunction = forwardedData[1].StartsWith("#") ? forwardedModule.PeImage.ExportDirectory.GetExportedFunction(int.Parse(forwardedData[1].Replace("#", string.Empty))) : forwardedModule.PeImage.ExportDirectory.GetExportedFunction(forwardedData[1]);
 
                 if (forwardedFunction is null)
                 {
-                    return IntPtr.Zero;
+                    throw new ApplicationException($"Failed to resolve the forwarded function {forwarderString}");
                 }
 
                 if (forwardedFunction.ForwarderString is null || forwardedFunction.ForwarderString.Equals(forwarderString, StringComparison.OrdinalIgnoreCase))

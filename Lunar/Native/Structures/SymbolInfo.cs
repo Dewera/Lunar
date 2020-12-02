@@ -1,5 +1,4 @@
-﻿using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 
 namespace Lunar.Native.Structures
 {
@@ -15,11 +14,11 @@ namespace Lunar.Native.Structures
         [FieldOffset(0x50)]
         private readonly int MaxNameLen;
 
-        internal SymbolInfo(int maxNameLen)
+        internal SymbolInfo(int sizeOfStruct, long address, int maxNameLen)
         {
-            SizeOfStruct = Unsafe.SizeOf<SymbolInfo>();
+            SizeOfStruct = sizeOfStruct;
 
-            Address = 0;
+            Address = address;
 
             MaxNameLen = maxNameLen;
         }

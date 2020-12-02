@@ -26,9 +26,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
             var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory32>(ImageBytes.Span.Slice(DirectoryOffset));
 
-            var exceptionTableAddress = VaToRva(loadConfigDirectory.SEHandlerTable);
-
-            return new ExceptionTable(loadConfigDirectory.SEHandlerCount, exceptionTableAddress);
+            return new ExceptionTable(loadConfigDirectory.SEHandlerCount, VaToRva(loadConfigDirectory.SEHandlerTable));
         }
 
         internal SecurityCookie? GetSecurityCookie()
@@ -49,9 +47,7 @@ namespace Lunar.PortableExecutable.DataDirectories
                     return null;
                 }
 
-                var securityCookieAddress = VaToRva(loadConfigDirectory.SecurityCookie);
-
-                return new SecurityCookie(securityCookieAddress);
+                return new SecurityCookie(VaToRva(loadConfigDirectory.SecurityCookie));
             }
 
             else
@@ -65,9 +61,7 @@ namespace Lunar.PortableExecutable.DataDirectories
                     return null;
                 }
 
-                var securityCookieAddress = VaToRva(loadConfigDirectory.SecurityCookie);
-
-                return new SecurityCookie(securityCookieAddress);
+                return new SecurityCookie(VaToRva(loadConfigDirectory.SecurityCookie));
             }
         }
     }

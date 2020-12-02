@@ -15,9 +15,7 @@ using Lunar.Native.Enumerations;
 using Lunar.Native.Structures;
 using Lunar.PortableExecutable;
 using Lunar.Remote;
-using Lunar.Remote.Structures;
 using Lunar.Shared;
-using Lunar.Symbol;
 
 [assembly: CLSCompliant(true)]
 
@@ -42,8 +40,6 @@ namespace Lunar
         private readonly PeImage _peImage;
 
         private readonly ProcessContext _processContext;
-
-        private readonly SymbolHandler _symbolHandler;
 
         /// <summary>
         /// Provides the functionality to map a DLL from memory into a process
@@ -74,8 +70,6 @@ namespace Lunar
             _peImage = new PeImage(dllBytes);
 
             _processContext = new ProcessContext(process);
-
-            _symbolHandler = new SymbolHandler(Path.Combine(process.GetSystemDirectoryPath(), "ntdll.dll"));
         }
 
         /// <summary>
@@ -107,8 +101,6 @@ namespace Lunar
             _peImage = new PeImage(_dllBytes.ToArray());
 
             _processContext = new ProcessContext(process);
-
-            _symbolHandler = new SymbolHandler(Path.Combine(process.GetSystemDirectoryPath(), "ntdll.dll"));
         }
 
         /// <summary>
@@ -250,11 +242,6 @@ namespace Lunar
 
                     var functionAddress = function.Name is null ? _processContext.GetFunctionAddress(importDescriptor.Name, function.Ordinal) : _processContext.GetFunctionAddress(importDescriptor.Name, function.Name);
 
-                    if (functionAddress == IntPtr.Zero)
-                    {
-                        throw new ApplicationException("Failed to resolve the address of a function in a module");
-                    }
-
                     MemoryMarshal.Write(_dllBytes.Span.Slice(function.Offset), ref functionAddress);
                 }
             });
@@ -290,27 +277,15 @@ namespace Lunar
             {
                 // Free the dependency using the Windows loader
 
-                var routineAddress = _processContext.GetFunctionAddress("kernel32.dll", "FreeLibrary");
-
-                if (routineAddress == IntPtr.Zero)
-                {
-                    throw new ApplicationException("Failed to resolve the address of a function in a module");
-                }
-
                 var dependencyAddress = _processContext.GetModuleAddress(dependency.Name);
 
-                if (dependencyAddress == IntPtr.Zero)
+                if (!_processContext.CallRoutine<bool>(_processContext.GetFunctionAddress("kernel32.dll", "FreeLibrary"), dependencyAddress))
                 {
-                    throw new ApplicationException("Failed to resolve the address of a module in the process");
-                }
-
-                if (!_processContext.CallRoutine<bool>(routineAddress, dependencyAddress))
-                {
-                    throw new ApplicationException("Failed to free a dependency from the process");
+                    throw new ApplicationException($"Failed to free the dependency {dependency.Name} from the process");
                 }
             }
 
-            _processContext.Refresh();
+            _processContext.ClearModuleCache();
         }
 
         private void InitialiseSecurityCookie()
@@ -369,181 +344,180 @@ namespace Lunar
 
         private void InsertExceptionHandlers()
         {
-            // Read the function table
+            _processContext.CallRoutine(_processContext.GetFunctionAddress("ntdll.dll", "RtlAcquirePebLock"));
 
-            var ntdllAddress = _processContext.GetModuleAddress("ntdll.dll");
-
-            if (ntdllAddress == IntPtr.Zero)
+            try
             {
-                throw new ApplicationException("Failed to resolve the address of a module in the process");
-            }
+                // Read the function table
 
-            var functionTableAddress = ntdllAddress + _symbolHandler.GetSymbolAddress("LdrpInvertedFunctionTable");
+                var functionTableAddress = _processContext.GetNtdllSymbolAddress("LdrpInvertedFunctionTable");
 
-            var functionTable = _processContext.Process.ReadStructure<InvertedFunctionTable>(functionTableAddress);
+                var functionTable = _processContext.Process.ReadStructure<InvertedFunctionTable>(functionTableAddress);
 
-            if (functionTable.Overflow == 1)
-            {
-                return;
-            }
-
-            if (_processContext.Process.GetArchitecture() == Architecture.X86)
-            {
-                var exceptionTable = _peImage.LoadConfigDirectory.GetExceptionTable();
-
-                if (exceptionTable is null)
+                if (functionTable.Overflow == 1)
                 {
                     return;
                 }
 
-                // Read the function table entry array
-
-                var functionTableEntryArrayAddress = functionTableAddress + Unsafe.SizeOf<InvertedFunctionTable>();
-
-                var functionTableEntryArray = _processContext.Process.ReadArray<InvertedFunctionTableEntry32>(functionTableEntryArrayAddress, Constants.InvertedFunctionTableSize);
-
-                // Initialise a new function table entry array
-
-                var newFunctionTableEntryArray = functionTableEntryArray.ToArray();
-
-                // Determine where the new function table entry should be inserted
-
-                var insertionIndex = 1;
-
-                while (insertionIndex < functionTable.Count)
+                if (_processContext.Process.GetArchitecture() == Architecture.X86)
                 {
-                    if ((uint) DllBaseAddress.ToInt32() < (uint) newFunctionTableEntryArray[insertionIndex].ImageBase)
+                    var exceptionTable = _peImage.LoadConfigDirectory.GetExceptionTable();
+
+                    if (exceptionTable is null)
                     {
-                        break;
+                        return;
                     }
 
-                    insertionIndex += 1;
-                }
+                    // Read the function table entry array
 
-                if (insertionIndex < functionTable.Count)
-                {
-                    // Shift the existing elements to make space for the new function table entry
+                    var functionTableEntryArrayAddress = functionTableAddress + Unsafe.SizeOf<InvertedFunctionTable>();
 
-                    for (var entryIndex = functionTable.Count - 1; entryIndex >= insertionIndex; entryIndex -= 1)
+                    var functionTableEntryArray = _processContext.Process.ReadArray<InvertedFunctionTableEntry32>(functionTableEntryArrayAddress, Constants.InvertedFunctionTableSize);
+
+                    // Initialise a new function table entry array
+
+                    var newFunctionTableEntryArray = functionTableEntryArray.ToArray();
+
+                    // Determine where the new function table entry should be inserted
+
+                    var insertionIndex = 1;
+
+                    while (insertionIndex < functionTable.Count)
                     {
-                        newFunctionTableEntryArray[entryIndex + 1] = newFunctionTableEntryArray[entryIndex];
+                        if ((uint) DllBaseAddress.ToInt32() < (uint) newFunctionTableEntryArray[insertionIndex].ImageBase)
+                        {
+                            break;
+                        }
+
+                        insertionIndex += 1;
+                    }
+
+                    if (insertionIndex < functionTable.Count)
+                    {
+                        // Shift the existing elements to make space for the new function table entry
+
+                        for (var entryIndex = functionTable.Count - 1; entryIndex >= insertionIndex; entryIndex -= 1)
+                        {
+                            newFunctionTableEntryArray[entryIndex + 1] = newFunctionTableEntryArray[entryIndex];
+                        }
+                    }
+
+                    // Read the shared user data
+
+                    var sharedUserDataAddress = SafeHelpers.CreateSafePointer(Constants.SharedUserDataAddress);
+
+                    var sharedUserData = _processContext.Process.ReadStructure<KUserSharedData>(sharedUserDataAddress);
+
+                    // Encode the address of the exception directory using the system pointer encoding algorithm
+
+                    var exceptionDirectoryAddress = DllBaseAddress + exceptionTable.RelativeAddress;
+
+                    var xoredAddress = (uint) exceptionDirectoryAddress.ToInt32() ^ (uint) sharedUserData.Cookie;
+
+                    var lowerCookieBits = sharedUserData.Cookie & 0x1F;
+
+                    var rotatedAddress = (xoredAddress >> lowerCookieBits) | (xoredAddress << (32 - lowerCookieBits));
+
+                    // Initialise a new function table entry for the DLL
+
+                    var newFunctionTableEntry = new InvertedFunctionTableEntry32((int) rotatedAddress, DllBaseAddress.ToInt32(), _peImage.Headers.PEHeader!.SizeOfImage, exceptionTable.HandlerCount);
+
+                    newFunctionTableEntryArray[insertionIndex] = newFunctionTableEntry;
+
+                    // Update the existing function table array
+
+                    _processContext.Process.WriteArray(functionTableEntryArrayAddress, newFunctionTableEntryArray.AsSpan());
+
+                    // Update the function table
+
+                    var overflow = functionTable.Count + 1 == functionTable.MaxCount ? 1 : 0;
+
+                    var newFunctionTable = new InvertedFunctionTable(functionTable.Count + 1, functionTable.MaxCount, overflow);
+
+                    try
+                    {
+                        _processContext.Process.WriteStructure(functionTableAddress, newFunctionTable);
+                    }
+
+                    catch
+                    {
+                        _processContext.Process.WriteArray(functionTableEntryArrayAddress, functionTableEntryArray);
+
+                        throw;
                     }
                 }
 
-                // Read the shared user data
-
-                var sharedUserDataAddress = SafeHelpers.CreateSafePointer(Constants.SharedUserDataAddress);
-
-                var sharedUserData = _processContext.Process.ReadStructure<KUserSharedData>(sharedUserDataAddress);
-
-                // Encode the address of the exception directory using the system pointer encoding algorithm
-
-                var exceptionDirectoryAddress = DllBaseAddress + exceptionTable.RelativeAddress;
-
-                var xoredAddress = (uint) exceptionDirectoryAddress.ToInt32() ^ (uint) sharedUserData.Cookie;
-
-                var lowerCookieBits = sharedUserData.Cookie & 0x1F;
-
-                var rotatedAddress = (xoredAddress >> lowerCookieBits) | (xoredAddress << (32 - lowerCookieBits));
-
-                // Initialise a new function table entry for the DLL
-
-                var newFunctionTableEntry = new InvertedFunctionTableEntry32((int) rotatedAddress, DllBaseAddress.ToInt32(), _peImage.Headers.PEHeader!.SizeOfImage, exceptionTable.HandlerCount);
-
-                newFunctionTableEntryArray[insertionIndex] = newFunctionTableEntry;
-
-                // Update the existing function table array
-
-                _processContext.Process.WriteArray(functionTableEntryArrayAddress, newFunctionTableEntryArray.AsSpan());
-
-                // Update the function table
-
-                var overflow = functionTable.Count + 1 == functionTable.MaxCount ? 1 : 0;
-
-                var newFunctionTable = new InvertedFunctionTable(functionTable.Count + 1, functionTable.MaxCount, overflow);
-
-                try
+                else
                 {
-                    _processContext.Process.WriteStructure(functionTableAddress, newFunctionTable);
-                }
+                    // Read the function table entry array
 
-                catch
-                {
-                    // Restore the original function table array
+                    var functionTableEntryArrayAddress = functionTableAddress + Unsafe.SizeOf<InvertedFunctionTable>();
 
-                    _processContext.Process.WriteArray(functionTableEntryArrayAddress, functionTableEntryArray);
+                    var functionTableEntryArray = _processContext.Process.ReadArray<InvertedFunctionTableEntry64>(functionTableEntryArrayAddress, Constants.InvertedFunctionTableSize);
 
-                    throw;
+                    // Initialise a new function table entry array
+
+                    var newFunctionTableEntryArray = functionTableEntryArray.ToArray();
+
+                    // Determine where the new function table entry should be inserted
+
+                    var insertionIndex = 1;
+
+                    while (insertionIndex < functionTable.Count)
+                    {
+                        if ((ulong) DllBaseAddress.ToInt64() < (ulong) newFunctionTableEntryArray[insertionIndex].ImageBase)
+                        {
+                            break;
+                        }
+
+                        insertionIndex += 1;
+                    }
+
+                    if (insertionIndex < functionTable.Count)
+                    {
+                        // Shift the existing elements to make space for the new function table entry
+
+                        for (var entryIndex = functionTable.Count - 1; entryIndex >= insertionIndex; entryIndex -= 1)
+                        {
+                            newFunctionTableEntryArray[entryIndex + 1] = newFunctionTableEntryArray[entryIndex];
+                        }
+                    }
+
+                    // Initialise a new function table entry for the DLL
+
+                    var exceptionDirectoryAddress = DllBaseAddress + _peImage.Headers.PEHeader!.ExceptionTableDirectory.RelativeVirtualAddress;
+
+                    var newFunctionTableEntry = new InvertedFunctionTableEntry64(exceptionDirectoryAddress.ToInt64(), DllBaseAddress.ToInt64(), _peImage.Headers.PEHeader!.SizeOfImage, _peImage.Headers.PEHeader!.ExceptionTableDirectory.Size);
+
+                    newFunctionTableEntryArray[insertionIndex] = newFunctionTableEntry;
+
+                    // Update the existing function table array
+
+                    _processContext.Process.WriteArray(functionTableEntryArrayAddress, newFunctionTableEntryArray.AsSpan());
+
+                    // Update the function table
+
+                    var overflow = functionTable.Count + 1 == functionTable.MaxCount ? 1 : 0;
+
+                    var newFunctionTable = new InvertedFunctionTable(functionTable.Count + 1, functionTable.MaxCount, overflow);
+
+                    try
+                    {
+                        _processContext.Process.WriteStructure(functionTableAddress, newFunctionTable);
+                    }
+
+                    catch
+                    {
+                        _processContext.Process.WriteArray(functionTableEntryArrayAddress, functionTableEntryArray);
+
+                        throw;
+                    }
                 }
             }
 
-            else
+            finally
             {
-                // Read the function table entry array
-
-                var functionTableEntryArrayAddress = functionTableAddress + Unsafe.SizeOf<InvertedFunctionTable>();
-
-                var functionTableEntryArray = _processContext.Process.ReadArray<InvertedFunctionTableEntry64>(functionTableEntryArrayAddress, Constants.InvertedFunctionTableSize);
-
-                // Initialise a new function table entry array
-
-                var newFunctionTableEntryArray = functionTableEntryArray.ToArray();
-
-                // Determine where the new function table entry should be inserted
-
-                var insertionIndex = 1;
-
-                while (insertionIndex < functionTable.Count)
-                {
-                    if ((ulong) DllBaseAddress.ToInt64() < (ulong) newFunctionTableEntryArray[insertionIndex].ImageBase)
-                    {
-                        break;
-                    }
-
-                    insertionIndex += 1;
-                }
-
-                if (insertionIndex < functionTable.Count)
-                {
-                    // Shift the existing elements to make space for the new function table entry
-
-                    for (var entryIndex = functionTable.Count - 1; entryIndex >= insertionIndex; entryIndex -= 1)
-                    {
-                        newFunctionTableEntryArray[entryIndex + 1] = newFunctionTableEntryArray[entryIndex];
-                    }
-                }
-
-                // Initialise a new function table entry for the DLL
-
-                var exceptionDirectoryAddress = DllBaseAddress + _peImage.Headers.PEHeader!.ExceptionTableDirectory.RelativeVirtualAddress;
-
-                var newFunctionTableEntry = new InvertedFunctionTableEntry64(exceptionDirectoryAddress.ToInt64(), DllBaseAddress.ToInt64(), _peImage.Headers.PEHeader!.SizeOfImage, _peImage.Headers.PEHeader!.ExceptionTableDirectory.Size);
-
-                newFunctionTableEntryArray[insertionIndex] = newFunctionTableEntry;
-
-                // Update the existing function table array
-
-                _processContext.Process.WriteArray(functionTableEntryArrayAddress, newFunctionTableEntryArray.AsSpan());
-
-                // Update the function table
-
-                var overflow = functionTable.Count + 1 == functionTable.MaxCount ? 1 : 0;
-
-                var newFunctionTable = new InvertedFunctionTable(functionTable.Count + 1, functionTable.MaxCount, overflow);
-
-                try
-                {
-                    _processContext.Process.WriteStructure(functionTableAddress, newFunctionTable);
-                }
-
-                catch
-                {
-                    // Restore the original function table array
-
-                    _processContext.Process.WriteArray(functionTableEntryArrayAddress, functionTableEntryArray);
-
-                    throw;
-                }
+                _processContext.CallRoutine(_processContext.GetFunctionAddress("ntdll.dll", "RtlReleasePebLock"));
             }
         }
 
@@ -553,15 +527,13 @@ namespace Lunar
 
             foreach (var dependency in _peImage.ImportDirectory.GetImportDescriptors())
             {
-                var dependencyName = _processContext.ResolveModuleName(dependency.Name);
-
                 // Write the file path of the dependency into the process
 
-                var dependencyFilePath = _fileResolver.ResolveFilePath(activationContext, dependencyName);
+                var dependencyFilePath = _fileResolver.ResolveFilePath(activationContext, _processContext.ResolveModuleName(dependency.Name));
 
                 if (dependencyFilePath is null)
                 {
-                    throw new FileNotFoundException("Failed to resolve the file path of a dependency");
+                    throw new FileNotFoundException($"Failed to resolve the file path of the dependency {dependency.Name}");
                 }
 
                 var dependencyFilePathAddress = _processContext.Process.AllocateMemory(Encoding.Unicode.GetByteCount(dependencyFilePath));
@@ -572,21 +544,14 @@ namespace Lunar
 
                     // Load the dependency using the Windows loader
 
-                    var routineAddress = _processContext.GetFunctionAddress("kernel32.dll", "LoadLibraryW");
+                    var dependencyAddress = _processContext.CallRoutine<IntPtr>(_processContext.GetFunctionAddress("kernel32.dll", "LoadLibraryW"), dependencyFilePathAddress);
 
-                    if (routineAddress == IntPtr.Zero)
+                    if (dependencyAddress == IntPtr.Zero)
                     {
-                        throw new ApplicationException("Failed to resolve the address of a function in a module");
+                        throw new ApplicationException($"Failed to load the dependency {dependency.Name} into the process");
                     }
 
-                    var moduleAddress = _processContext.CallRoutine<IntPtr>(routineAddress, dependencyFilePathAddress);
-
-                    if (moduleAddress == IntPtr.Zero)
-                    {
-                        throw new ApplicationException("Failed to load a dependency into the process");
-                    }
-
-                    _processContext.NotifyModuleLoad(new Module(moduleAddress, dependencyName, new PeImage(File.ReadAllBytes(dependencyFilePath))));
+                    _processContext.NotifyModuleLoad(dependencyAddress, dependencyFilePath);
                 }
 
                 finally
@@ -707,152 +672,151 @@ namespace Lunar
 
         private void RemoveExceptionHandlers()
         {
-            // Read the function table
+            _processContext.CallRoutine(_processContext.GetFunctionAddress("ntdll.dll", "RtlAcquirePebLock"));
 
-            var ntdllAddress = _processContext.GetModuleAddress("ntdll.dll");
-
-            if (ntdllAddress == IntPtr.Zero)
+            try
             {
-                throw new ApplicationException("Failed to resolve the address of a module in the process");
-            }
+                // Read the function table
 
-            var functionTableAddress = ntdllAddress + _symbolHandler.GetSymbolAddress("LdrpInvertedFunctionTable");
+                var functionTableAddress = _processContext.GetNtdllSymbolAddress("LdrpInvertedFunctionTable");
 
-            var functionTable = _processContext.Process.ReadStructure<InvertedFunctionTable>(functionTableAddress);
+                var functionTable = _processContext.Process.ReadStructure<InvertedFunctionTable>(functionTableAddress);
 
-            if (_processContext.Process.GetArchitecture() == Architecture.X86)
-            {
-                var exceptionTable = _peImage.LoadConfigDirectory.GetExceptionTable();
-
-                if (exceptionTable is null)
+                if (_processContext.Process.GetArchitecture() == Architecture.X86)
                 {
-                    return;
-                }
+                    var exceptionTable = _peImage.LoadConfigDirectory.GetExceptionTable();
 
-                // Read the function table entry array
-
-                var functionTableEntryArrayAddress = functionTableAddress + Unsafe.SizeOf<InvertedFunctionTable>();
-
-                var functionTableEntryArray = _processContext.Process.ReadArray<InvertedFunctionTableEntry32>(functionTableEntryArrayAddress, Constants.InvertedFunctionTableSize);
-
-                // Initialise a new function table entry array
-
-                var newFunctionTableEntryArray = functionTableEntryArray.ToArray();
-
-                // Determine where the function table entry should be removed
-
-                var removalIndex = 1;
-
-                while (removalIndex < functionTable.Count)
-                {
-                    if ((uint) DllBaseAddress.ToInt32() == (uint) newFunctionTableEntryArray[removalIndex].ImageBase)
+                    if (exceptionTable is null)
                     {
-                        break;
+                        return;
                     }
 
-                    removalIndex += 1;
-                }
+                    // Read the function table entry array
 
-                if (removalIndex < functionTable.Count - 1)
-                {
-                    // Shift the existing elements to overwrite the function table entry
+                    var functionTableEntryArrayAddress = functionTableAddress + Unsafe.SizeOf<InvertedFunctionTable>();
 
-                    for (var entryIndex = removalIndex; entryIndex < functionTable.Count; entryIndex += 1)
+                    var functionTableEntryArray = _processContext.Process.ReadArray<InvertedFunctionTableEntry32>(functionTableEntryArrayAddress, Constants.InvertedFunctionTableSize);
+
+                    // Initialise a new function table entry array
+
+                    var newFunctionTableEntryArray = functionTableEntryArray.ToArray();
+
+                    // Determine where the function table entry should be removed
+
+                    var removalIndex = 1;
+
+                    while (removalIndex < functionTable.Count)
                     {
-                        newFunctionTableEntryArray[entryIndex] = newFunctionTableEntryArray[entryIndex + 1];
+                        if ((uint) DllBaseAddress.ToInt32() == (uint) newFunctionTableEntryArray[removalIndex].ImageBase)
+                        {
+                            break;
+                        }
+
+                        removalIndex += 1;
+                    }
+
+                    if (removalIndex < functionTable.Count - 1)
+                    {
+                        // Shift the existing elements to overwrite the function table entry
+
+                        for (var entryIndex = removalIndex; entryIndex < functionTable.Count; entryIndex += 1)
+                        {
+                            newFunctionTableEntryArray[entryIndex] = newFunctionTableEntryArray[entryIndex + 1];
+                        }
+                    }
+
+                    else
+                    {
+                        newFunctionTableEntryArray[removalIndex] = default;
+                    }
+
+                    // Update the existing function table array
+
+                    _processContext.Process.WriteArray(functionTableEntryArrayAddress, newFunctionTableEntryArray.AsSpan());
+
+                    // Update the function table
+
+                    var newFunctionTable = new InvertedFunctionTable(functionTable.Count - 1, functionTable.MaxCount, 0);
+
+                    try
+                    {
+                        _processContext.Process.WriteStructure(functionTableAddress, newFunctionTable);
+                    }
+
+                    catch
+                    {
+                        _processContext.Process.WriteArray(functionTableEntryArrayAddress, functionTableEntryArray);
+
+                        throw;
                     }
                 }
 
                 else
                 {
-                    newFunctionTableEntryArray[removalIndex] = default;
-                }
+                    // Read the function table entry array
 
-                // Update the existing function table array
+                    var functionTableEntryArrayAddress = functionTableAddress + Unsafe.SizeOf<InvertedFunctionTable>();
 
-                _processContext.Process.WriteArray(functionTableEntryArrayAddress, newFunctionTableEntryArray.AsSpan());
+                    var functionTableEntryArray = _processContext.Process.ReadArray<InvertedFunctionTableEntry64>(functionTableEntryArrayAddress, Constants.InvertedFunctionTableSize);
 
-                // Update the function table
+                    // Initialise a new function table entry array
 
-                var newFunctionTable = new InvertedFunctionTable(functionTable.Count - 1, functionTable.MaxCount, 0);
+                    var newFunctionTableEntryArray = functionTableEntryArray.ToArray();
 
-                try
-                {
-                    _processContext.Process.WriteStructure(functionTableAddress, newFunctionTable);
-                }
+                    // Determine where the function table entry should be removed
 
-                catch
-                {
-                    // Restore the original function table array
+                    var removalIndex = 1;
 
-                    _processContext.Process.WriteArray(functionTableEntryArrayAddress, functionTableEntryArray);
+                    while (removalIndex < functionTable.Count)
+                    {
+                        if ((ulong) DllBaseAddress.ToInt64() == (ulong) newFunctionTableEntryArray[removalIndex].ImageBase)
+                        {
+                            break;
+                        }
 
-                    throw;
+                        removalIndex += 1;
+                    }
+
+                    if (removalIndex < functionTable.Count - 1)
+                    {
+                        // Shift the existing elements to overwrite the function table entry
+
+                        for (var entryIndex = removalIndex; entryIndex < functionTable.Count; entryIndex += 1)
+                        {
+                            newFunctionTableEntryArray[entryIndex] = newFunctionTableEntryArray[entryIndex + 1];
+                        }
+                    }
+
+                    else
+                    {
+                        newFunctionTableEntryArray[removalIndex] = default;
+                    }
+
+                    // Update the existing function table array
+
+                    _processContext.Process.WriteArray(functionTableEntryArrayAddress, newFunctionTableEntryArray.AsSpan());
+
+                    // Update the function table
+
+                    var newFunctionTable = new InvertedFunctionTable(functionTable.Count - 1, functionTable.MaxCount, 0);
+
+                    try
+                    {
+                        _processContext.Process.WriteStructure(functionTableAddress, newFunctionTable);
+                    }
+
+                    catch
+                    {
+                        _processContext.Process.WriteArray(functionTableEntryArrayAddress, functionTableEntryArray);
+
+                        throw;
+                    }
                 }
             }
 
-            else
+            finally
             {
-                // Read the function table entry array
-
-                var functionTableEntryArrayAddress = functionTableAddress + Unsafe.SizeOf<InvertedFunctionTable>();
-
-                var functionTableEntryArray = _processContext.Process.ReadArray<InvertedFunctionTableEntry64>(functionTableEntryArrayAddress, Constants.InvertedFunctionTableSize);
-
-                // Initialise a new function table entry array
-
-                var newFunctionTableEntryArray = functionTableEntryArray.ToArray();
-
-                // Determine where the function table entry should be removed
-
-                var removalIndex = 1;
-
-                while (removalIndex < functionTable.Count)
-                {
-                    if ((ulong) DllBaseAddress.ToInt64() == (ulong) newFunctionTableEntryArray[removalIndex].ImageBase)
-                    {
-                        break;
-                    }
-
-                    removalIndex += 1;
-                }
-
-                if (removalIndex < functionTable.Count - 1)
-                {
-                    // Shift the existing elements to overwrite the function table entry
-
-                    for (var entryIndex = removalIndex; entryIndex < functionTable.Count; entryIndex += 1)
-                    {
-                        newFunctionTableEntryArray[entryIndex] = newFunctionTableEntryArray[entryIndex + 1];
-                    }
-                }
-
-                else
-                {
-                    newFunctionTableEntryArray[removalIndex] = default;
-                }
-
-                // Update the existing function table array
-
-                _processContext.Process.WriteArray(functionTableEntryArrayAddress, newFunctionTableEntryArray.AsSpan());
-
-                // Update the function table
-
-                var newFunctionTable = new InvertedFunctionTable(functionTable.Count - 1, functionTable.MaxCount, 0);
-
-                try
-                {
-                    _processContext.Process.WriteStructure(functionTableAddress, newFunctionTable);
-                }
-
-                catch
-                {
-                    // Restore the original function table array
-
-                    _processContext.Process.WriteArray(functionTableEntryArrayAddress, functionTableEntryArray);
-
-                    throw;
-                }
+                _processContext.CallRoutine(_processContext.GetFunctionAddress("ntdll.dll", "RtlReleasePebLock"));
             }
         }
     }

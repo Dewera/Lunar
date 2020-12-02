@@ -7,6 +7,9 @@ namespace Lunar.Native.PInvoke
 {
     internal static class Kernel32
     {
+        [DllImport("kernel32.dll", ExactSpelling = true)]
+        internal static extern SafeProcessHandle GetCurrentProcess();
+
         [DllImport("kernel32.dll", SetLastError = true)]
         internal static extern bool IsWow64Process(SafeProcessHandle processHandle, out bool isWow64Process);
 

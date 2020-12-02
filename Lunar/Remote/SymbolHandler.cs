@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Immutable;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -13,8 +12,9 @@ using Lunar.Native;
 using Lunar.Native.Enumerations;
 using Lunar.Native.PInvoke;
 using Lunar.Native.Structures;
+using Lunar.Remote.Structures;
 
-namespace Lunar.Symbol
+namespace Lunar.Remote
 {
     internal sealed class SymbolHandler
     {
@@ -25,13 +25,13 @@ namespace Lunar.Symbol
             _pdbFilePath = FindOrDownloadPdb(dllFilePath).GetAwaiter().GetResult();
         }
 
-        internal int GetSymbolAddress(string symbolName)
+        internal Symbol GetSymbol(string symbolName)
         {
             // Initialise a symbol handler
 
             Dbghelp.SymSetOptions(SymbolOptions.UndecorateName);
 
-            using var currentProcessHandle = Process.GetCurrentProcess().SafeHandle;
+            var currentProcessHandle = Kernel32.GetCurrentProcess();
 
             if (!Dbghelp.SymInitialize(currentProcessHandle, null, false))
             {
@@ -59,35 +59,18 @@ namespace Lunar.Symbol
 
                 Span<byte> symbolInformationBytes = stackalloc byte[symbolInformationSize];
 
-                MemoryMarshal.Write(symbolInformationBytes, ref Unsafe.AsRef(new SymbolInfo(Constants.MaxSymbolNameLength)));
+                MemoryMarshal.Write(symbolInformationBytes, ref Unsafe.AsRef(new SymbolInfo(Unsafe.SizeOf<SymbolInfo>(), 0, Constants.MaxSymbolNameLength)));
 
-                try
-                {
-                    // Retrieve the symbol information
+                // Retrieve the symbol information
 
-                    if (!Dbghelp.SymFromName(currentProcessHandle, symbolName, out symbolInformationBytes[0]))
-                    {
-                        throw new Win32Exception();
-                    }
-                }
-
-                catch
-                {
-                    Dbghelp.SymUnloadModule(currentProcessHandle, pseudoDllAddress);
-
-                    throw;
-                }
-
-                if (!Dbghelp.SymUnloadModule(currentProcessHandle, pseudoDllAddress))
+                if (!Dbghelp.SymFromName(currentProcessHandle, symbolName, out symbolInformationBytes[0]))
                 {
                     throw new Win32Exception();
                 }
 
-                // Calculate the address of the symbol
-
                 var symbolInformation = MemoryMarshal.Read<SymbolInfo>(symbolInformationBytes);
 
-                return (int) symbolInformation.Address - pseudoDllAddress;
+                return new Symbol((int) (symbolInformation.Address - pseudoDllAddress));
             }
 
             finally
