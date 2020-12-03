@@ -58,7 +58,7 @@ namespace Lunar.Remote
                 shellcodeBytes = Assembler.AssembleCall64(routineDescriptor);
             }
 
-            // Write the shellcode bytes into the process
+            // Write the shellcode into the process
 
             var shellcodeBytesAddress = Process.AllocateMemory(shellcodeBytes.Length, true);
 

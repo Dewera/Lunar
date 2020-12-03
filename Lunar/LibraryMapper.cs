@@ -42,7 +42,7 @@ namespace Lunar
         private readonly ProcessContext _processContext;
 
         /// <summary>
-        /// Provides the functionality to map a DLL from memory into a process
+        /// Initialises an instances of the <see cref="LibraryMapper"/> class with the functionality to map a DLL from memory into a process
         /// </summary>
         public LibraryMapper(Process process, Memory<byte> dllBytes, MappingFlags mappingFlags = MappingFlags.None)
         {
@@ -73,7 +73,7 @@ namespace Lunar
         }
 
         /// <summary>
-        /// Provides the functionality to map a DLL from disk into a process
+        /// Initialises an instances of the <see cref="LibraryMapper"/> class with the functionality to map a DLL from disk into a process
         /// </summary>
         public LibraryMapper(Process process, string dllFilePath, MappingFlags mappingFlags = MappingFlags.None)
         {
