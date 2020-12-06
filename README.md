@@ -53,13 +53,13 @@ public sealed class LibraryMapper
 Initialises an instance of the `LibraryMapper` class with the functionality to map a DLL from memory into a process
 
 ```c#
-LibraryMapper(Process, Memory<byte>, MappingFlags)
+public LibraryMapper(Process, Memory<byte>, MappingFlags);
 ```
 
 Initialises an instance of the `LibraryMapper` class with the functionality to map a DLL from disk into a process
 
 ```c#
-LibraryMapper(Process, string, MappingFlags)
+public LibraryMapper(Process, string, MappingFlags);
 ```
 
 ### Properties
@@ -75,13 +75,13 @@ public IntPtr DllBaseAddress { get; }
 Maps the DLL into the process
 
 ```c#
-MapLibrary()
+public void MapLibrary();
 ```
 
 Unmaps the DLL from the process
 
 ```c#
-UnmapLibrary()
+public void UnmapLibrary();
 ```
 
 ---
