@@ -1,18 +1,15 @@
 ﻿using System;
-using System.Collections.Immutable;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Net;
-using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Threading.Tasks;
 using Lunar.Native;
 using Lunar.Native.Enumerations;
 using Lunar.Native.PInvoke;
 using Lunar.Native.Structures;
 using Lunar.Remote.Structures;
+using Lunar.Utilities;
 
 namespace Lunar.Remote
 {
@@ -20,9 +17,9 @@ namespace Lunar.Remote
     {
         private readonly string _pdbFilePath;
 
-        internal SymbolHandler(string dllFilePath)
+        internal SymbolHandler(Process process)
         {
-            _pdbFilePath = FindOrDownloadPdb(dllFilePath).GetAwaiter().GetResult();
+            _pdbFilePath = DependencyManager.FindOrDownloadNtdllPdb(process).GetAwaiter().GetResult();
         }
 
         internal Symbol GetSymbol(string symbolName)
@@ -77,64 +74,6 @@ namespace Lunar.Remote
             {
                 Dbghelp.SymCleanup(currentProcessHandle);
             }
-        }
-
-        private static async Task<string> FindOrDownloadPdb(string dllFilePath)
-        {
-            // Read the PDB data
-
-            using var peReader = new PEReader(File.ReadAllBytes(dllFilePath).ToImmutableArray());
-
-            var codeViewEntry = peReader.ReadDebugDirectory().First(entry => entry.Type == DebugDirectoryEntryType.CodeView);
-
-            var pdbData = peReader.ReadCodeViewDebugDirectoryData(codeViewEntry);
-
-            // Find or create the PDB cache directory
-
-            var cacheDirectoryPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Lunar", "Dependencies");
-
-            var cacheDirectory = Directory.CreateDirectory(cacheDirectoryPath);
-
-            // Check if the correct version of the PDB is already cached
-
-            var pdbFilePath = Path.Combine(cacheDirectory.FullName, $"{pdbData.Path}-{pdbData.Guid:N}.pdb");
-
-            if (File.Exists(pdbFilePath))
-            {
-                return pdbFilePath;
-            }
-
-            // Clear the directory of any old PDB versions
-
-            foreach (var file in cacheDirectory.EnumerateFiles().Where(file => file.Name.StartsWith(pdbData.Path)))
-            {
-                try
-                {
-                    file.Delete();
-                }
-
-                catch (IOException)
-                {
-                    // The file cannot be safely deleted
-                }
-            }
-
-            // Download the PDB from the Microsoft symbol server
-
-            using var webClient = new WebClient();
-
-            webClient.DownloadProgressChanged += (_, eventArguments) =>
-            {
-                var progress = eventArguments.ProgressPercentage / 2;
-
-                Console.Write($"\rDownloading required files [{pdbData.Path}] - [{new string('=', progress)}{new string(' ', 50 - progress)}] - {eventArguments.ProgressPercentage}%");
-            };
-
-            var pdbUri = new Uri($"https://msdl.microsoft.com/download/symbols/{pdbData.Path}/{pdbData.Guid:N}{pdbData.Age}/{pdbData.Path}");
-
-            await webClient.DownloadFileTaskAsync(pdbUri, pdbFilePath);
-
-            return pdbFilePath;
         }
     }
 }

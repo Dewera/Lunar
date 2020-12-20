@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Lunar.Native.PInvoke;
 using Lunar.Native.Structures;
-using Lunar.Shared;
+using Lunar.Utilities;
 
 namespace Lunar.FileResolution
 {

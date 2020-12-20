@@ -15,7 +15,7 @@ using Lunar.Native.Enumerations;
 using Lunar.Native.Structures;
 using Lunar.PortableExecutable;
 using Lunar.Remote;
-using Lunar.Shared;
+using Lunar.Utilities;
 
 [assembly: CLSCompliant(true)]
 

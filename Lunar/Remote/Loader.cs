@@ -7,7 +7,7 @@ using Lunar.Native.Enumerations;
 using Lunar.Native.Structures;
 using Lunar.PortableExecutable;
 using Lunar.Remote.Structures;
-using Lunar.Shared;
+using Lunar.Utilities;
 
 namespace Lunar.Remote
 {

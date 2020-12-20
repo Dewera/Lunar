@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
 
-namespace Lunar.Shared
+namespace Lunar.Utilities
 {
     internal static class SafeHelpers
     {

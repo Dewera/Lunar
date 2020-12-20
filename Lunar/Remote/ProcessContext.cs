@@ -33,7 +33,7 @@ namespace Lunar.Remote
 
             _moduleCache = new Dictionary<string, Module>(StringComparer.OrdinalIgnoreCase);
 
-            _symbolHandler = new SymbolHandler(Path.Combine(process.GetSystemDirectoryPath(), "ntdll.dll"));
+            _symbolHandler = new SymbolHandler(process);
 
             Process = process;
         }

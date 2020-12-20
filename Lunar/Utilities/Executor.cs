@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Lunar.Shared
+namespace Lunar.Utilities
 {
     internal static class Executor
     {
