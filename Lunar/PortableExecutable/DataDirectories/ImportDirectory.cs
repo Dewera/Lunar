@@ -11,7 +11,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 {
     internal sealed class ImportDirectory : DataDirectory
     {
-        internal ImportDirectory(PEHeaders headers, Memory<byte> imageBytes) : base(headers, imageBytes, headers.PEHeader!.ImportTableDirectory) { }
+        internal ImportDirectory(PEHeaders headers, Memory<byte> imageBytes) : base(headers.PEHeader!.ImportTableDirectory, headers, imageBytes) { }
 
         internal IEnumerable<ImportDescriptor> GetImportDescriptors()
         {

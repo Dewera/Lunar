@@ -19,12 +19,12 @@ namespace Lunar.Remote
 
         internal SymbolHandler(Process process)
         {
-            _pdbFilePath = DependencyManager.FindOrDownloadNtdllPdb(process).GetAwaiter().GetResult();
+            _pdbFilePath = DependencyManager.FindOrDownloadDependenciesAsync(process).GetAwaiter().GetResult();
         }
 
         internal Symbol GetSymbol(string symbolName)
         {
-            // Initialise a symbol handler
+            // Initialise the native symbol handler
 
             Dbghelp.SymSetOptions(SymbolOptions.UndecorateName);
 
@@ -43,31 +43,37 @@ namespace Lunar.Remote
 
                 var pdbSize = new FileInfo(_pdbFilePath).Length;
 
-                var symbolTableAddress = Dbghelp.SymLoadModule(currentProcessHandle, IntPtr.Zero, _pdbFilePath, null, pseudoDllAddress, (int) pdbSize);
+                var symbolTableAddress = Dbghelp.SymLoadModuleEx(currentProcessHandle, IntPtr.Zero, _pdbFilePath, null, pseudoDllAddress, (int) pdbSize, IntPtr.Zero, 0);
 
                 if (symbolTableAddress == 0)
                 {
                     throw new Win32Exception();
                 }
 
-                // Initialise an array to receive the symbol information
-
-                var symbolInformationSize = (Unsafe.SizeOf<SymbolInfo>() + sizeof(char) * Constants.MaxSymbolNameLength + sizeof(long) - 1) / sizeof(long);
-
-                Span<byte> symbolInformationBytes = stackalloc byte[symbolInformationSize];
-
-                MemoryMarshal.Write(symbolInformationBytes, ref Unsafe.AsRef(new SymbolInfo(Unsafe.SizeOf<SymbolInfo>(), 0, Constants.MaxSymbolNameLength)));
-
-                // Retrieve the symbol information
-
-                if (!Dbghelp.SymFromName(currentProcessHandle, symbolName, out symbolInformationBytes[0]))
+                try
                 {
-                    throw new Win32Exception();
+                    // Initialise a buffer to store the symbol information
+
+                    Span<byte> symbolInformationBytes = stackalloc byte[(Unsafe.SizeOf<SymbolInfo>() + sizeof(char) * Constants.MaxSymbolNameLength + sizeof(long) - 1) / sizeof(long)];
+
+                    MemoryMarshal.Write(symbolInformationBytes, ref Unsafe.AsRef(new SymbolInfo(Unsafe.SizeOf<SymbolInfo>(), 0, Constants.MaxSymbolNameLength)));
+
+                    // Retrieve the symbol information
+
+                    if (!Dbghelp.SymFromName(currentProcessHandle, symbolName, out Unsafe.As<byte, SymbolInfo>(ref symbolInformationBytes[0])))
+                    {
+                        throw new Win32Exception();
+                    }
+
+                    var symbolInformation = MemoryMarshal.Read<SymbolInfo>(symbolInformationBytes);
+
+                    return new Symbol((int) (symbolInformation.Address - pseudoDllAddress));
                 }
 
-                var symbolInformation = MemoryMarshal.Read<SymbolInfo>(symbolInformationBytes);
-
-                return new Symbol((int) (symbolInformation.Address - pseudoDllAddress));
+                finally
+                {
+                    Dbghelp.SymUnloadModule64(currentProcessHandle, symbolTableAddress);
+                }
             }
 
             finally

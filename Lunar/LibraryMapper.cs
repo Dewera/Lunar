@@ -58,7 +58,7 @@ namespace Lunar
 
             if (!Environment.Is64BitProcess && process.GetArchitecture() == Architecture.X64)
             {
-                throw new NotSupportedException("The provided process cannot be loaded into from an x86 build");
+                throw new NotSupportedException("The provided process cannot be mapped into from an x86 build");
             }
 
             _dllBytes = dllBytes.ToArray();
@@ -89,7 +89,7 @@ namespace Lunar
 
             if (!Environment.Is64BitProcess && process.GetArchitecture() == Architecture.X64)
             {
-                throw new NotSupportedException("The provided process cannot be loaded into from an x86 build");
+                throw new NotSupportedException("The provided process cannot be mapped into from an x86 build");
             }
 
             _dllBytes = File.ReadAllBytes(dllFilePath);
@@ -182,53 +182,56 @@ namespace Lunar
                 return;
             }
 
+            var topLevelException = default(Exception);
+
             try
             {
-                try
+                if (!_mappingFlags.HasFlag(MappingFlags.SkipInitialisationRoutines))
                 {
-                    try
-                    {
-                        try
-                        {
-                            if (!_mappingFlags.HasFlag(MappingFlags.SkipInitialisationRoutines))
-                            {
-                                CallInitialisationRoutines(DllReason.ProcessDetach);
-                            }
-                        }
-
-                        catch
-                        {
-                            Executor.IgnoreExceptions(RemoveExceptionHandlers);
-
-                            throw;
-                        }
-
-                        RemoveExceptionHandlers();
-                    }
-
-                    catch
-                    {
-                        Executor.IgnoreExceptions(FreeDependencies);
-
-                        throw;
-                    }
-
-                    FreeDependencies();
+                    CallInitialisationRoutines(DllReason.ProcessDetach);
                 }
+            }
 
-                catch
-                {
-                    Executor.IgnoreExceptions(() => _processContext.Process.FreeMemory(DllBaseAddress));
+            catch (Exception exception)
+            {
+                topLevelException ??= exception;
+            }
 
-                    throw;
-                }
+            try
+            {
+                RemoveExceptionHandlers();
+            }
 
+            catch (Exception exception)
+            {
+                topLevelException ??= exception;
+            }
+
+            try
+            {
+                FreeDependencies();
+            }
+
+            catch (Exception exception)
+            {
+                topLevelException ??= exception;
+            }
+
+            try
+            {
                 _processContext.Process.FreeMemory(DllBaseAddress);
             }
 
-            finally
+            catch (Exception exception)
             {
-                DllBaseAddress = IntPtr.Zero;
+                topLevelException ??= exception;
+            }
+
+            DllBaseAddress = IntPtr.Zero;
+
+            if (topLevelException is not null)
+            {
+                throw topLevelException;
             }
         }
 
@@ -627,47 +630,46 @@ namespace Lunar
 
         private void RelocateImage()
         {
-            if (_processContext.Process.GetArchitecture() == Architecture.X86)
+            Parallel.ForEach(_peImage.RelocationDirectory.GetRelocations(), relocation =>
             {
-                // Calculate the delta from the preferred base address
-
-                var delta = (uint) DllBaseAddress.ToInt32() - (uint) _peImage.Headers.PEHeader!.ImageBase;
-
-                Parallel.ForEach(_peImage.RelocationDirectory.GetRelocations(), relocation =>
+                switch (relocation.Type)
                 {
-                    if (relocation.Type != RelocationType.HighLow)
+                    case RelocationType.Dir64:
+                    {
+                        // Calculate the delta from the preferred base address
+
+                        var delta = (ulong) DllBaseAddress.ToInt64() - _peImage.Headers.PEHeader!.ImageBase;
+
+                        // Perform the relocation
+
+                        var relocationValue = MemoryMarshal.Read<ulong>(_dllBytes.Span.Slice(relocation.Offset)) + delta;
+
+                        MemoryMarshal.Write(_dllBytes.Span.Slice(relocation.Offset), ref relocationValue);
+
+                        break;
+                    }
+
+                    case RelocationType.HighLow:
+                    {
+                        // Calculate the delta from the preferred base address
+
+                        var delta = (uint) DllBaseAddress.ToInt32() - (uint) _peImage.Headers.PEHeader!.ImageBase;
+
+                        // Perform the relocation
+
+                        var relocationValue = MemoryMarshal.Read<uint>(_dllBytes.Span.Slice(relocation.Offset)) + delta;
+
+                        MemoryMarshal.Write(_dllBytes.Span.Slice(relocation.Offset), ref relocationValue);
+
+                        break;
+                    }
+
+                    default:
                     {
                         return;
                     }
-
-                    // Perform the relocation
-
-                    var relocationValue = MemoryMarshal.Read<uint>(_dllBytes.Span.Slice(relocation.Offset)) + delta;
-
-                    MemoryMarshal.Write(_dllBytes.Span.Slice(relocation.Offset), ref relocationValue);
-                });
-            }
-
-            else
-            {
-                // Calculate the delta from the preferred base address
-
-                var delta = (ulong) DllBaseAddress.ToInt64() - _peImage.Headers.PEHeader!.ImageBase;
-
-                Parallel.ForEach(_peImage.RelocationDirectory.GetRelocations(), relocation =>
-                {
-                    if (relocation.Type != RelocationType.Dir64)
-                    {
-                        return;
-                    }
-
-                    // Perform the relocation
-
-                    var relocationValue = MemoryMarshal.Read<ulong>(_dllBytes.Span.Slice(relocation.Offset)) + delta;
-
-                    MemoryMarshal.Write(_dllBytes.Span.Slice(relocation.Offset), ref relocationValue);
-                });
-            }
+                }
+            });
         }
 
         private void RemoveExceptionHandlers()

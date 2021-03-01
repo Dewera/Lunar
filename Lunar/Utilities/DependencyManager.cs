@@ -11,11 +11,11 @@ namespace Lunar.Utilities
 {
     internal static class DependencyManager
     {
-        internal static async Task<string> FindOrDownloadNtdllPdb(Process process)
+        internal static async Task<string> FindOrDownloadDependenciesAsync(Process process)
         {
-            var ntdllFilePath = Path.Combine(process.GetSystemDirectoryPath(), "ntdll.dll");
+            // Read the PDB data of ntdll.dll
 
-            // Read the PDB data
+            var ntdllFilePath = Path.Combine(process.GetSystemDirectoryPath(), "ntdll.dll");
 
             using var peReader = new PEReader(File.OpenRead(ntdllFilePath));
 

@@ -8,7 +8,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 {
     internal sealed class LoadConfigDirectory : DataDirectory
     {
-        internal LoadConfigDirectory(PEHeaders headers, Memory<byte> imageBytes) : base(headers, imageBytes, headers.PEHeader!.LoadConfigTableDirectory) { }
+        internal LoadConfigDirectory(PEHeaders headers, Memory<byte> imageBytes) : base(headers.PEHeader!.LoadConfigTableDirectory, headers, imageBytes) { }
 
         internal ExceptionTable? GetExceptionTable()
         {
@@ -42,12 +42,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                 var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory32>(ImageBytes.Span.Slice(DirectoryOffset));
 
-                if (loadConfigDirectory.SecurityCookie == 0)
-                {
-                    return null;
-                }
-
-                return new SecurityCookie(VaToRva(loadConfigDirectory.SecurityCookie));
+                return loadConfigDirectory.SecurityCookie == 0 ? null : new SecurityCookie(VaToRva(loadConfigDirectory.SecurityCookie));
             }
 
             else
@@ -56,12 +51,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                 var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory64>(ImageBytes.Span.Slice(DirectoryOffset));
 
-                if (loadConfigDirectory.SecurityCookie == 0)
-                {
-                    return null;
-                }
-
-                return new SecurityCookie(VaToRva(loadConfigDirectory.SecurityCookie));
+                return loadConfigDirectory.SecurityCookie == 0 ? null : new SecurityCookie(VaToRva(loadConfigDirectory.SecurityCookie));
             }
         }
     }

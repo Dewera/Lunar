@@ -10,6 +10,8 @@
 
         internal const int MaxSymbolNameLength = 0x7D0;
 
+        internal const int ShadowSpaceSize = 0x28;
+
         internal const int SharedUserDataAddress = 0x7FFE0000;
     }
 }

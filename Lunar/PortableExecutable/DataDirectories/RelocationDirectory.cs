@@ -11,7 +11,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 {
     internal sealed class RelocationDirectory : DataDirectory
     {
-        internal RelocationDirectory(PEHeaders headers, Memory<byte> imageBytes) : base(headers, imageBytes, headers.PEHeader!.BaseRelocationTableDirectory) { }
+        internal RelocationDirectory(PEHeaders headers, Memory<byte> imageBytes) : base(headers.PEHeader!.BaseRelocationTableDirectory, headers, imageBytes) { }
 
         internal IEnumerable<Relocation> GetRelocations()
         {

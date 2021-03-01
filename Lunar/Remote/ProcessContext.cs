@@ -175,7 +175,7 @@ namespace Lunar.Remote
         {
             var moduleName = Path.GetFileName(moduleFilePath);
 
-            _moduleCache.TryAdd(moduleName, new Module(moduleAddress, Path.GetFileName(moduleFilePath), new PeImage(File.ReadAllBytes(moduleFilePath))));
+            _moduleCache.TryAdd(moduleName, new Module(moduleAddress, moduleName, new PeImage(File.ReadAllBytes(moduleFilePath))));
         }
 
         internal string ResolveModuleName(string moduleName)

@@ -12,7 +12,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 {
     internal sealed class ResourceDirectory : DataDirectory
     {
-        internal ResourceDirectory(PEHeaders headers, Memory<byte> imageBytes) : base(headers, imageBytes, headers.PEHeader!.ResourceTableDirectory) { }
+        internal ResourceDirectory(PEHeaders headers, Memory<byte> imageBytes) : base(headers.PEHeader!.ResourceTableDirectory, headers, imageBytes) { }
 
         internal XDocument? GetManifest()
         {

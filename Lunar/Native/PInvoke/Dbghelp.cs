@@ -1,25 +1,29 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 using Lunar.Native.Enumerations;
+using Lunar.Native.Structures;
 using Microsoft.Win32.SafeHandles;
 
 namespace Lunar.Native.PInvoke
 {
     internal static class Dbghelp
     {
-        [DllImport("dbghelp.dll")]
-        internal static extern void SymCleanup(SafeProcessHandle processHandle);
-
         [DllImport("dbghelp.dll", SetLastError = true)]
-        internal static extern bool SymFromName(SafeProcessHandle processHandle, string name, out byte symbol);
+        internal static extern bool SymCleanup(SafeProcessHandle processHandle);
 
-        [DllImport("dbghelp.dll", SetLastError = true)]
+        [DllImport("dbghelp.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        internal static extern bool SymFromName(SafeProcessHandle processHandle, string name, out SymbolInfo symbol);
+
+        [DllImport("dbghelp.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         internal static extern bool SymInitialize(SafeProcessHandle processHandle, string? searchPath, bool invadeProcess);
 
-        [DllImport("dbghelp.dll", SetLastError = true)]
-        internal static extern int SymLoadModule(SafeProcessHandle processHandle, IntPtr fileHandle, string imageName, string? moduleName, int dllBase, int dllSize);
+        [DllImport("dbghelp.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        internal static extern int SymLoadModuleEx(SafeProcessHandle processHandle, IntPtr fileHandle, string imageName, string? moduleName, long dllBase, int dllSize, IntPtr data, int flags);
 
         [DllImport("dbghelp.dll")]
-        internal static extern void SymSetOptions(SymbolOptions options);
+        internal static extern int SymSetOptions(SymbolOptions options);
+
+        [DllImport("dbghelp.dll", SetLastError = true)]
+        internal static extern bool SymUnloadModule64(SafeProcessHandle processHandle, long dllBase);
     }
 }

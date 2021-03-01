@@ -9,7 +9,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 {
     internal sealed class TlsDirectory : DataDirectory
     {
-        internal TlsDirectory(PEHeaders headers, Memory<byte> imageBytes) : base(headers, imageBytes, headers.PEHeader!.ThreadLocalStorageTableDirectory) { }
+        internal TlsDirectory(PEHeaders headers, Memory<byte> imageBytes) : base(headers.PEHeader!.ThreadLocalStorageTableDirectory, headers, imageBytes) { }
 
         internal IEnumerable<TlsCallback> GetTlsCallbacks()
         {

@@ -13,15 +13,17 @@ namespace Lunar.PortableExecutable
 
         private protected bool IsValid { get; }
 
-        private protected DataDirectory(PEHeaders headers, Memory<byte> imageBytes, DirectoryEntry directory)
+        private protected DataDirectory(DirectoryEntry directory, PEHeaders headers, Memory<byte> imageBytes)
         {
-            IsValid = headers.TryGetDirectoryOffset(directory, out var directoryOffset);
+            headers.TryGetDirectoryOffset(directory, out var directoryOffset);
 
             DirectoryOffset = directoryOffset;
 
             Headers = headers;
 
             ImageBytes = imageBytes;
+
+            IsValid = directoryOffset != -1;
         }
 
         private protected int RvaToOffset(int rva)

@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using Lunar.Assembly.Structures;
+using Lunar.Native;
 
 namespace Lunar.Assembly
 {
@@ -57,18 +59,20 @@ namespace Lunar.Assembly
 
             instructions.Add(0xC3);
 
-            return instructions.ToArray();
+            return CollectionsMarshal.AsSpan(instructions);
         }
 
         internal static Span<byte> AssembleCall64(CallDescriptor64 callDescriptor)
         {
             var instructions = new List<byte>();
 
-            // sub rsp, 0x28
+            var shadowSpaceSize = Constants.ShadowSpaceSize + Math.Max(0, callDescriptor.Arguments.Count - 4);
 
-            instructions.AddRange(new byte[] {0x48, 0x83, 0xEC, 0x28});
+            // sub rsp, shadowSpaceSize
 
-            if (callDescriptor.Arguments.Length > 0)
+            instructions.AddRange(new byte[] {0x48, 0x83, 0xEC, (byte) shadowSpaceSize});
+
+            if (callDescriptor.Arguments.Count > 0)
             {
                 var argument = callDescriptor.Arguments[0];
 
@@ -107,7 +111,7 @@ namespace Lunar.Assembly
                 }
             }
 
-            if (callDescriptor.Arguments.Length > 1)
+            if (callDescriptor.Arguments.Count > 1)
             {
                 var argument = callDescriptor.Arguments[1];
 
@@ -146,7 +150,7 @@ namespace Lunar.Assembly
                 }
             }
 
-            if (callDescriptor.Arguments.Length > 2)
+            if (callDescriptor.Arguments.Count > 2)
             {
                 var argument = callDescriptor.Arguments[2];
 
@@ -154,9 +158,9 @@ namespace Lunar.Assembly
                 {
                     case 0:
                     {
-                        // xor r8d, r8d
+                        // xor r8, r8
 
-                        instructions.AddRange(new byte[] {0x45, 0x31, 0xC0});
+                        instructions.AddRange(new byte[] {0x4D, 0x31, 0xC0});
 
                         break;
                     }
@@ -185,7 +189,7 @@ namespace Lunar.Assembly
                 }
             }
 
-            if (callDescriptor.Arguments.Length > 3)
+            if (callDescriptor.Arguments.Count > 3)
             {
                 var argument = callDescriptor.Arguments[3];
 
@@ -193,9 +197,9 @@ namespace Lunar.Assembly
                 {
                     case 0:
                     {
-                        // xor r9d, r9d
+                        // xor r9, r9
 
-                        instructions.AddRange(new byte[] {0x45, 0x31, 0xC9});
+                        instructions.AddRange(new byte[] {0x4D, 0x31, 0xC9});
 
                         break;
                     }
@@ -224,9 +228,9 @@ namespace Lunar.Assembly
                 }
             }
 
-            if (callDescriptor.Arguments.Length > 4)
+            if (callDescriptor.Arguments.Count > 4)
             {
-                foreach (var argument in callDescriptor.Arguments[4..].Reverse())
+                foreach (var argument in callDescriptor.Arguments.Skip(4).Reverse())
                 {
                     switch (argument)
                     {
@@ -291,15 +295,15 @@ namespace Lunar.Assembly
 
             instructions.AddRange(new byte[] {0x31, 0xC0});
 
-            // add rsp, 0x28
+            // add rsp, shadowSpaceSize
 
-            instructions.AddRange(new byte[] {0x48, 0x83, 0xC4, 0x28});
+            instructions.AddRange(new byte[] {0x48, 0x83, 0xC4, (byte) shadowSpaceSize});
 
             // ret
 
             instructions.Add(0xC3);
 
-            return instructions.ToArray();
+            return CollectionsMarshal.AsSpan(instructions);
         }
     }
 }
