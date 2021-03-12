@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -31,7 +32,7 @@ namespace Lunar.Remote
 
             _loader = new Loader(process);
 
-            _moduleCache = new Dictionary<string, Module>(StringComparer.OrdinalIgnoreCase);
+            _moduleCache = new ConcurrentDictionary<string, Module>(StringComparer.OrdinalIgnoreCase);
 
             _symbolHandler = new SymbolHandler(process);
 
@@ -204,7 +205,7 @@ namespace Lunar.Remote
                 throw new ApplicationException($"Failed to find the module {moduleName} in the process");
             }
 
-            _moduleCache.Add(moduleName, module);
+            _moduleCache.TryAdd(moduleName, module);
 
             return module;
         }

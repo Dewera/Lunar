@@ -22,7 +22,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
             var currentRelocationBlockOffset = DirectoryOffset;
 
-            while (true)
+            while (currentRelocationBlockOffset < DirectoryOffset + Headers.PEHeader!.BaseRelocationTableDirectory.Size)
             {
                 // Read the relocation block
 
