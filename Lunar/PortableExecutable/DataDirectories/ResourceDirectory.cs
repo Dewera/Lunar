@@ -23,7 +23,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
             // Read the resource directory
 
-            var resourceDirectory = MemoryMarshal.Read<ImageResourceDirectory>(ImageBytes.Span.Slice(DirectoryOffset));
+            var resourceDirectory = MemoryMarshal.Read<ImageResourceDirectory>(ImageBytes.Span[DirectoryOffset..]);
 
             var resourceCount = resourceDirectory.NumberOfIdEntries + resourceDirectory.NumberOfNameEntries;
 
@@ -33,7 +33,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                 var firstLevelResourceEntryOffset = DirectoryOffset + Unsafe.SizeOf<ImageResourceDirectory>() + Unsafe.SizeOf<ImageResourceDirectoryEntry>() * resourceIndex;
 
-                var firstLevelResourceEntry = MemoryMarshal.Read<ImageResourceDirectoryEntry>(ImageBytes.Span.Slice(firstLevelResourceEntryOffset));
+                var firstLevelResourceEntry = MemoryMarshal.Read<ImageResourceDirectoryEntry>(ImageBytes.Span[firstLevelResourceEntryOffset..]);
 
                 if (firstLevelResourceEntry.Id != Constants.ManifestResourceId)
                 {
@@ -44,7 +44,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                 var secondLevelResourceEntryOffset = DirectoryOffset + Unsafe.SizeOf<ImageResourceDirectory>() + (firstLevelResourceEntry.OffsetToData & int.MaxValue);
 
-                var secondLevelResourceEntry = MemoryMarshal.Read<ImageResourceDirectoryEntry>(ImageBytes.Span.Slice(secondLevelResourceEntryOffset));
+                var secondLevelResourceEntry = MemoryMarshal.Read<ImageResourceDirectoryEntry>(ImageBytes.Span[secondLevelResourceEntryOffset..]);
 
                 if (secondLevelResourceEntry.Id != Constants.DllManifestId)
                 {
@@ -55,13 +55,13 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                 var thirdLevelResourceEntryOffset = DirectoryOffset + Unsafe.SizeOf<ImageResourceDirectory>() + (secondLevelResourceEntry.OffsetToData & int.MaxValue);
 
-                var thirdLevelResourceEntry = MemoryMarshal.Read<ImageResourceDirectoryEntry>(ImageBytes.Span.Slice(thirdLevelResourceEntryOffset));
+                var thirdLevelResourceEntry = MemoryMarshal.Read<ImageResourceDirectoryEntry>(ImageBytes.Span[thirdLevelResourceEntryOffset..]);
 
                 // Read the manifest data entry
 
                 var manifestDataEntryOffset = DirectoryOffset + thirdLevelResourceEntry.OffsetToData;
 
-                var manifestDataEntry = MemoryMarshal.Read<ImageResourceDataEntry>(ImageBytes.Span.Slice(manifestDataEntryOffset));
+                var manifestDataEntry = MemoryMarshal.Read<ImageResourceDataEntry>(ImageBytes.Span[manifestDataEntryOffset..]);
 
                 // Read the manifest
 

@@ -8,6 +8,8 @@
 
         internal const int ManifestResourceId = 0x18;
 
+        internal const int MaxPath = 0x104;
+
         internal const int MaxSymbolNameLength = 0x7D0;
 
         internal const int ShadowSpaceSize = 0x28;

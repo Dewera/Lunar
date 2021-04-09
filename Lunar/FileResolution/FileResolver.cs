@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using Lunar.Extensions;
 
 namespace Lunar.FileResolution
@@ -23,7 +24,7 @@ namespace Lunar.FileResolution
         {
             // Check for .local redirection
 
-            var dotLocalFilePath = Path.Combine(_process.GetProcessDirectoryPath(), ".local", fileName);
+            var dotLocalFilePath = Path.Combine(_process.MainModule!.FileName!, ".local", fileName);
 
             if (File.Exists(dotLocalFilePath))
             {
@@ -53,7 +54,7 @@ namespace Lunar.FileResolution
 
             // Search the directory from which the process was loaded
 
-            var processDirectoryFilePath = Path.Combine(_process.GetProcessDirectoryPath(), fileName);
+            var processDirectoryFilePath = Path.Combine(_process.MainModule!.FileName!, fileName);
 
             if (File.Exists(processDirectoryFilePath))
             {
@@ -62,7 +63,9 @@ namespace Lunar.FileResolution
 
             // Search the System directory
 
-            var systemDirectoryFilePath = Path.Combine(_process.GetSystemDirectoryPath(), fileName);
+            var systemDirectoryPath = _process.GetArchitecture() == Architecture.X86 ? Environment.GetFolderPath(Environment.SpecialFolder.SystemX86) : Environment.SystemDirectory;
+
+            var systemDirectoryFilePath = Path.Combine(systemDirectoryPath, fileName);
 
             if (File.Exists(systemDirectoryFilePath))
             {

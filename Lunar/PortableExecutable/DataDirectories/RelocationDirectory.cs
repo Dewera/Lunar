@@ -26,7 +26,7 @@ namespace Lunar.PortableExecutable.DataDirectories
             {
                 // Read the relocation block
 
-                var relocationBlock = MemoryMarshal.Read<ImageBaseRelocation>(ImageBytes.Span.Slice(currentRelocationBlockOffset));
+                var relocationBlock = MemoryMarshal.Read<ImageBaseRelocation>(ImageBytes.Span[currentRelocationBlockOffset..]);
 
                 if (relocationBlock.SizeOfBlock == 0)
                 {
@@ -41,7 +41,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                     var relocationOffset = currentRelocationBlockOffset + Unsafe.SizeOf<ImageBaseRelocation>() + sizeof(short) * relocationIndex;
 
-                    var relocation = MemoryMarshal.Read<short>(ImageBytes.Span.Slice(relocationOffset));
+                    var relocation = MemoryMarshal.Read<short>(ImageBytes.Span[relocationOffset..]);
 
                     // The type is located in the upper 4 bits of the relocation
 

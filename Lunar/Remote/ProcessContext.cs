@@ -1,26 +1,30 @@
-﻿using System;
-using System.Collections.Concurrent;
+using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Lunar.Assembly;
-using Lunar.Assembly.Structures;
+using System.Text;
 using Lunar.Extensions;
 using Lunar.FileResolution;
+using Lunar.Native;
+using Lunar.Native.Enumerations;
+using Lunar.Native.PInvoke;
 using Lunar.PortableExecutable;
 using Lunar.Remote.Structures;
+using Lunar.Shellcode;
+using Lunar.Shellcode.Structures;
 
 namespace Lunar.Remote
 {
     internal sealed class ProcessContext
     {
+        internal Memory Memory { get; }
+
         internal Process Process { get; }
 
         private readonly ApiSetMap _apiSetMap;
-
-        private readonly Loader _loader;
 
         private readonly IDictionary<string, Module> _moduleCache;
 
@@ -30,119 +34,88 @@ namespace Lunar.Remote
         {
             _apiSetMap = new ApiSetMap();
 
-            _loader = new Loader(process);
-
-            _moduleCache = new ConcurrentDictionary<string, Module>(StringComparer.OrdinalIgnoreCase);
+            _moduleCache = new Dictionary<string, Module>(StringComparer.OrdinalIgnoreCase);
 
             _symbolHandler = new SymbolHandler(process);
 
+            Memory = new Memory(process.SafeHandle);
+
             Process = process;
+
+            Refresh();
         }
 
         internal void CallRoutine(IntPtr routineAddress, params dynamic[] arguments)
         {
-            // Create the shellcode used to call the routine
+            // Assemble the shellcode used to call the routine
 
             Span<byte> shellcodeBytes;
 
             if (Process.GetArchitecture() == Architecture.X86)
             {
-                var callDescriptor = new CallDescriptor32(routineAddress, Array.ConvertAll(arguments, argument => (int) argument), IntPtr.Zero);
+                var callDescriptor = new CallDescriptor<int>(routineAddress, Array.ConvertAll(arguments, argument => (int) argument), IntPtr.Zero);
 
-                shellcodeBytes = Assembler.AssembleCall32(callDescriptor);
+                shellcodeBytes = ShellcodeAssembler.AssembleCall32(callDescriptor);
             }
 
             else
             {
-                var routineDescriptor = new CallDescriptor64(routineAddress, Array.ConvertAll(arguments, argument => (long) argument), IntPtr.Zero);
+                var callDescriptor = new CallDescriptor<long>(routineAddress, Array.ConvertAll(arguments, argument => (long) argument), IntPtr.Zero);
 
-                shellcodeBytes = Assembler.AssembleCall64(routineDescriptor);
+                shellcodeBytes = ShellcodeAssembler.AssembleCall64(callDescriptor);
             }
 
-            // Write the shellcode into the process
+            // Execute the shellcode
 
-            var shellcodeBytesAddress = Process.AllocateMemory(shellcodeBytes.Length, true);
-
-            try
-            {
-                Process.WriteArray(shellcodeBytesAddress, shellcodeBytes);
-
-                // Create a thread to execute the shellcode
-
-                Process.CreateThread(shellcodeBytesAddress);
-            }
-
-            finally
-            {
-                Process.FreeMemory(shellcodeBytesAddress);
-            }
+            ExecuteShellcode(shellcodeBytes);
         }
 
         internal T CallRoutine<T>(IntPtr routineAddress, params dynamic[] arguments) where T : unmanaged
         {
-            var returnAddress = Process.AllocateMemory(Unsafe.SizeOf<T>());
-
-            // Create the shellcode used to call the routine
-
-            Span<byte> shellcodeBytes;
-
-            if (Process.GetArchitecture() == Architecture.X86)
-            {
-                var callDescriptor = new CallDescriptor32(routineAddress, Array.ConvertAll(arguments, argument => (int) argument), returnAddress);
-
-                shellcodeBytes = Assembler.AssembleCall32(callDescriptor);
-            }
-
-            else
-            {
-                var routineDescriptor = new CallDescriptor64(routineAddress, Array.ConvertAll(arguments, argument => (long) argument), returnAddress);
-
-                shellcodeBytes = Assembler.AssembleCall64(routineDescriptor);
-            }
+            var returnAddress = Memory.AllocateBuffer(Unsafe.SizeOf<T>(), ProtectionType.ReadWrite);
 
             try
             {
-                // Write the shellcode bytes into the process
+                // Assemble the shellcode used to call the routine
 
-                var shellcodeBytesAddress = Process.AllocateMemory(shellcodeBytes.Length, true);
+                Span<byte> shellcodeBytes;
 
-                try
+                if (Process.GetArchitecture() == Architecture.X86)
                 {
-                    Process.WriteArray(shellcodeBytesAddress, shellcodeBytes);
+                    var callDescriptor = new CallDescriptor<int>(routineAddress, Array.ConvertAll(arguments, argument => (int) argument), returnAddress);
 
-                    // Create a thread to execute the shellcode
-
-                    Process.CreateThread(shellcodeBytesAddress);
+                    shellcodeBytes = ShellcodeAssembler.AssembleCall32(callDescriptor);
                 }
 
-                finally
+                else
                 {
-                    Process.FreeMemory(shellcodeBytesAddress);
+                    var callDescriptor = new CallDescriptor<long>(routineAddress, Array.ConvertAll(arguments, argument => (long) argument), returnAddress);
+
+                    shellcodeBytes = ShellcodeAssembler.AssembleCall64(callDescriptor);
                 }
 
-                return Process.ReadStructure<T>(returnAddress);
+                // Execute the shellcode
+
+                ExecuteShellcode(shellcodeBytes);
+
+                return Memory.ReadStructure<T>(returnAddress);
             }
 
             finally
             {
-                Process.FreeMemory(returnAddress);
+                Memory.FreeBuffer(returnAddress);
             }
-        }
-
-        internal void ClearModuleCache()
-        {
-            _moduleCache.Clear();
         }
 
         internal IntPtr GetFunctionAddress(string moduleName, string functionName)
         {
             var containingModule = GetModule(moduleName);
 
-            var function = containingModule.PeImage.ExportDirectory.GetExportedFunction(functionName);
+            var function = containingModule.PeImage.Value.ExportDirectory.GetExportedFunction(functionName);
 
             if (function is null)
             {
-                throw new ApplicationException($"Failed to find the function {functionName} in the module {moduleName}");
+                throw new ApplicationException($"Failed to find the function {functionName} in the module {moduleName.ToLower()}");
             }
 
             return function.ForwarderString is null ? containingModule.Address + function.RelativeAddress : ResolveForwardedFunction(function.ForwarderString);
@@ -152,11 +125,11 @@ namespace Lunar.Remote
         {
             var containingModule = GetModule(moduleName);
 
-            var function = containingModule.PeImage.ExportDirectory.GetExportedFunction(functionOrdinal);
+            var function = containingModule.PeImage.Value.ExportDirectory.GetExportedFunction(functionOrdinal);
 
             if (function is null)
             {
-                throw new ApplicationException($"Failed to find the function #{functionOrdinal} in the module {moduleName}");
+                throw new ApplicationException($"Failed to find the function #{functionOrdinal} in the module {moduleName.ToLower()}");
             }
 
             return function.ForwarderString is null ? containingModule.Address + function.RelativeAddress : ResolveForwardedFunction(function.ForwarderString);
@@ -172,11 +145,47 @@ namespace Lunar.Remote
             return GetModule("ntdll.dll").Address + _symbolHandler.GetSymbol(symbolName).RelativeAddress;
         }
 
-        internal void NotifyModuleLoad(IntPtr moduleAddress, string moduleFilePath)
+        internal void Refresh()
         {
-            var moduleName = Path.GetFileName(moduleFilePath);
+            _moduleCache.Clear();
 
-            _moduleCache.TryAdd(moduleName, new Module(moduleAddress, moduleName, new PeImage(File.ReadAllBytes(moduleFilePath))));
+            // Query the process for the addresses of its modules
+
+            const int arbitraryModuleAmount = 1024;
+
+            Span<IntPtr> moduleAddresses = stackalloc IntPtr[arbitraryModuleAmount];
+
+            var moduleType = Process.GetArchitecture() == Architecture.X86 ? ModuleType.X86 : ModuleType.X64;
+
+            if (!Kernel32.K32EnumProcessModulesEx(Process.SafeHandle, out moduleAddresses[0], IntPtr.Size * arbitraryModuleAmount, out var sizeNeeded, moduleType))
+            {
+                throw new Win32Exception();
+            }
+
+            Span<byte> moduleFilePathBytes = stackalloc byte[Encoding.Unicode.GetMaxByteCount(Constants.MaxPath)];
+
+            foreach (var moduleAddress in moduleAddresses[..(sizeNeeded / IntPtr.Size)])
+            {
+                moduleFilePathBytes.Clear();
+
+                // Retrieve the file path of the module
+
+                if (!Kernel32.K32GetModuleFileNameEx(Process.SafeHandle, moduleAddress, out moduleFilePathBytes[0], Encoding.Unicode.GetCharCount(moduleFilePathBytes)))
+                {
+                    throw new Win32Exception();
+                }
+
+                var moduleFilePath = Encoding.Unicode.GetString(moduleFilePathBytes).TrimEnd('\0');
+
+                if (Environment.Is64BitOperatingSystem && Process.GetArchitecture() == Architecture.X86)
+                {
+                    // Redirect the file path to the WOW64 directory
+
+                    moduleFilePath = moduleFilePath.Replace("System32", "SysWOW64", StringComparison.OrdinalIgnoreCase);
+                }
+
+                _moduleCache.Add(Path.GetFileName(moduleFilePath), new Module(moduleAddress, new Lazy<PeImage>(() => new PeImage(File.ReadAllBytes(moduleFilePath)))));
+            }
         }
 
         internal string ResolveModuleName(string moduleName)
@@ -189,23 +198,48 @@ namespace Lunar.Remote
             return moduleName;
         }
 
+        private void ExecuteShellcode(Span<byte> shellcodeBytes)
+        {
+            // Write the shellcode into the process
+
+            var shellcodeAddress = Memory.AllocateBuffer(shellcodeBytes.Length, ProtectionType.ExecuteRead);
+
+            try
+            {
+                Memory.WriteSpan(shellcodeAddress, shellcodeBytes);
+
+                // Create a thread to execute the shellcode
+
+                var status = Ntdll.RtlCreateUserThread(Process.SafeHandle, IntPtr.Zero, false, 0, 0, 0, shellcodeAddress, IntPtr.Zero, out var threadHandle, IntPtr.Zero);
+
+                if (status != NtStatus.Success)
+                {
+                    throw new Win32Exception(Ntdll.RtlNtStatusToDosError(status));
+                }
+
+                using (threadHandle)
+                {
+                    if (Kernel32.WaitForSingleObject(threadHandle, int.MaxValue) == -1)
+                    {
+                        throw new Win32Exception();
+                    }
+                }
+            }
+
+            finally
+            {
+                Memory.FreeBuffer(shellcodeAddress);
+            }
+        }
+
         private Module GetModule(string moduleName)
         {
             moduleName = ResolveModuleName(moduleName);
 
-            if (_moduleCache.TryGetValue(moduleName, out var module))
+            if (!_moduleCache.TryGetValue(moduleName, out var module))
             {
-                return module;
+                throw new ApplicationException($"Failed to find the module {moduleName.ToLower()} in the process");
             }
-
-            module = _loader.GetModule(moduleName);
-
-            if (module is null)
-            {
-                throw new ApplicationException($"Failed to find the module {moduleName} in the process");
-            }
-
-            _moduleCache.TryAdd(moduleName, module);
 
             return module;
         }
@@ -218,11 +252,11 @@ namespace Lunar.Remote
 
                 var forwardedModule = GetModule($"{forwardedData[0]}.dll");
 
-                var forwardedFunction = forwardedData[1].StartsWith("#") ? forwardedModule.PeImage.ExportDirectory.GetExportedFunction(int.Parse(forwardedData[1].Replace("#", string.Empty))) : forwardedModule.PeImage.ExportDirectory.GetExportedFunction(forwardedData[1]);
+                var forwardedFunction = forwardedData[1].StartsWith("#") ? forwardedModule.PeImage.Value.ExportDirectory.GetExportedFunction(int.Parse(forwardedData[1].Replace("#", string.Empty))) : forwardedModule.PeImage.Value.ExportDirectory.GetExportedFunction(forwardedData[1]);
 
                 if (forwardedFunction is null)
                 {
-                    throw new ApplicationException($"Failed to resolve the forwarded function {forwarderString}");
+                    throw new ApplicationException($"Failed to find the function {forwardedData[1]} in the module {forwardedData[0].ToLower()}.dll");
                 }
 
                 if (forwardedFunction.ForwarderString is null || forwardedFunction.ForwarderString.Equals(forwarderString, StringComparison.OrdinalIgnoreCase))

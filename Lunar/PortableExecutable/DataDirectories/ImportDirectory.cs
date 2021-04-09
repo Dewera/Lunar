@@ -26,7 +26,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                 var descriptorOffset = DirectoryOffset + Unsafe.SizeOf<ImageImportDescriptor>() * descriptorIndex;
 
-                var descriptor = MemoryMarshal.Read<ImageImportDescriptor>(ImageBytes.Span.Slice(descriptorOffset));
+                var descriptor = MemoryMarshal.Read<ImageImportDescriptor>(ImageBytes.Span[descriptorOffset..]);
 
                 if (descriptor.FirstThunk == 0)
                 {
@@ -37,7 +37,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                 var descriptorNameOffset = RvaToOffset(descriptor.Name);
 
-                var descriptorNameLength = ImageBytes.Span.Slice(descriptorNameOffset).IndexOf(byte.MinValue);
+                var descriptorNameLength = ImageBytes.Span[descriptorNameOffset..].IndexOf(byte.MinValue);
 
                 var descriptorName = Encoding.UTF8.GetString(ImageBytes.Span.Slice(descriptorNameOffset, descriptorNameLength));
 
@@ -65,7 +65,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                     var functionThunkOffset = thunkTableOffset + sizeof(int) * functionIndex;
 
-                    var functionThunk = MemoryMarshal.Read<int>(ImageBytes.Span.Slice(functionThunkOffset));
+                    var functionThunk = MemoryMarshal.Read<int>(ImageBytes.Span[functionThunkOffset..]);
 
                     if (functionThunk == 0)
                     {
@@ -87,13 +87,13 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                         var functionOrdinalOffset = RvaToOffset(functionThunk);
 
-                        var functionOrdinal = MemoryMarshal.Read<short>(ImageBytes.Span.Slice(functionOrdinalOffset));
+                        var functionOrdinal = MemoryMarshal.Read<short>(ImageBytes.Span[functionOrdinalOffset..]);
 
                         // Read the function name
 
                         var functionNameOffset = functionOrdinalOffset + sizeof(short);
 
-                        var functionNameLength = ImageBytes.Span.Slice(functionNameOffset).IndexOf(byte.MinValue);
+                        var functionNameLength = ImageBytes.Span[functionNameOffset..].IndexOf(byte.MinValue);
 
                         var functionName = Encoding.UTF8.GetString(ImageBytes.Span.Slice(functionNameOffset, functionNameLength));
 
@@ -109,7 +109,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                     var functionThunkOffset = thunkTableOffset + sizeof(long) * functionIndex;
 
-                    var functionThunk = MemoryMarshal.Read<long>(ImageBytes.Span.Slice(functionThunkOffset));
+                    var functionThunk = MemoryMarshal.Read<long>(ImageBytes.Span[functionThunkOffset..]);
 
                     if (functionThunk == 0)
                     {
@@ -131,13 +131,13 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                         var functionOrdinalOffset = RvaToOffset((int) functionThunk);
 
-                        var functionOrdinal = MemoryMarshal.Read<short>(ImageBytes.Span.Slice(functionOrdinalOffset));
+                        var functionOrdinal = MemoryMarshal.Read<short>(ImageBytes.Span[functionOrdinalOffset..]);
 
                         // Read the function name
 
                         var functionNameOffset = functionOrdinalOffset + sizeof(short);
 
-                        var functionNameLength = ImageBytes.Span.Slice(functionNameOffset).IndexOf(byte.MinValue);
+                        var functionNameLength = ImageBytes.Span[functionNameOffset..].IndexOf(byte.MinValue);
 
                         var functionName = Encoding.UTF8.GetString(ImageBytes.Span.Slice(functionNameOffset, functionNameLength));
 

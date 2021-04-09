@@ -22,7 +22,7 @@ namespace Lunar.PortableExecutable.DataDirectories
             {
                 // Read the TLS directory
 
-                var tlsDirectory = MemoryMarshal.Read<ImageTlsDirectory32>(ImageBytes.Span.Slice(DirectoryOffset));
+                var tlsDirectory = MemoryMarshal.Read<ImageTlsDirectory32>(ImageBytes.Span[DirectoryOffset..]);
 
                 if (tlsDirectory.AddressOfCallBacks == 0)
                 {
@@ -35,7 +35,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                     var callbackAddressOffset = RvaToOffset(VaToRva(tlsDirectory.AddressOfCallBacks)) + sizeof(int) * callbackIndex;
 
-                    var callbackAddress = MemoryMarshal.Read<int>(ImageBytes.Span.Slice(callbackAddressOffset));
+                    var callbackAddress = MemoryMarshal.Read<int>(ImageBytes.Span[callbackAddressOffset..]);
 
                     if (callbackAddress == 0)
                     {
@@ -50,7 +50,7 @@ namespace Lunar.PortableExecutable.DataDirectories
             {
                 // Read the TLS directory
 
-                var tlsDirectory = MemoryMarshal.Read<ImageTlsDirectory64>(ImageBytes.Span.Slice(DirectoryOffset));
+                var tlsDirectory = MemoryMarshal.Read<ImageTlsDirectory64>(ImageBytes.Span[DirectoryOffset..]);
 
                 if (tlsDirectory.AddressOfCallBacks == 0)
                 {
@@ -63,7 +63,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                     var callbackAddressOffset = RvaToOffset(VaToRva(tlsDirectory.AddressOfCallBacks)) + sizeof(long) * callbackIndex;
 
-                    var callbackAddress = MemoryMarshal.Read<long>(ImageBytes.Span.Slice(callbackAddressOffset));
+                    var callbackAddress = MemoryMarshal.Read<long>(ImageBytes.Span[callbackAddressOffset..]);
 
                     if (callbackAddress == 0)
                     {

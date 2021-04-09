@@ -20,7 +20,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
             // Read the export directory
 
-            var exportDirectory = MemoryMarshal.Read<ImageExportDirectory>(ImageBytes.Span.Slice(DirectoryOffset));
+            var exportDirectory = MemoryMarshal.Read<ImageExportDirectory>(ImageBytes.Span[DirectoryOffset..]);
 
             // Search the name address table for the corresponding name
 
@@ -36,9 +36,9 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                 var currentNameOffsetOffset = RvaToOffset(exportDirectory.AddressOfNames) + sizeof(int) * middle;
 
-                var currentNameOffset = RvaToOffset(MemoryMarshal.Read<int>(ImageBytes.Span.Slice(currentNameOffsetOffset)));
+                var currentNameOffset = RvaToOffset(MemoryMarshal.Read<int>(ImageBytes.Span[currentNameOffsetOffset..]));
 
-                var currentNameLength = ImageBytes.Span.Slice(currentNameOffset).IndexOf(byte.MinValue);
+                var currentNameLength = ImageBytes.Span[currentNameOffset..].IndexOf(byte.MinValue);
 
                 var currentName = Encoding.UTF8.GetString(ImageBytes.Span.Slice(currentNameOffset, currentNameLength));
 
@@ -48,7 +48,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                     var functionOrdinalOffset = RvaToOffset(exportDirectory.AddressOfNameOrdinals) + sizeof(short) * middle;
 
-                    var functionOrdinal = MemoryMarshal.Read<short>(ImageBytes.Span.Slice(functionOrdinalOffset)) + exportDirectory.Base;
+                    var functionOrdinal = MemoryMarshal.Read<short>(ImageBytes.Span[functionOrdinalOffset..]) + exportDirectory.Base;
 
                     return GetExportedFunction(functionOrdinal);
                 }
@@ -76,7 +76,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
             // Read the export directory
 
-            var exportDirectory = MemoryMarshal.Read<ImageExportDirectory>(ImageBytes.Span.Slice(DirectoryOffset));
+            var exportDirectory = MemoryMarshal.Read<ImageExportDirectory>(ImageBytes.Span[DirectoryOffset..]);
 
             functionOrdinal -= exportDirectory.Base;
 
@@ -89,7 +89,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
             var functionAddressOffset = RvaToOffset(exportDirectory.AddressOfFunctions) + sizeof(int) * functionOrdinal;
 
-            var functionAddress = MemoryMarshal.Read<int>(ImageBytes.Span.Slice(functionAddressOffset));
+            var functionAddress = MemoryMarshal.Read<int>(ImageBytes.Span[functionAddressOffset..]);
 
             // Check if the function is forwarded
 
@@ -106,7 +106,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
             var forwarderStringOffset = RvaToOffset(functionAddress);
 
-            var forwarderStringLength = ImageBytes.Span.Slice(forwarderStringOffset).IndexOf(byte.MinValue);
+            var forwarderStringLength = ImageBytes.Span[forwarderStringOffset..].IndexOf(byte.MinValue);
 
             var forwarderString = Encoding.UTF8.GetString(ImageBytes.Span.Slice(forwarderStringOffset, forwarderStringLength));
 
