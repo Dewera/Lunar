@@ -12,9 +12,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@main
-      - uses: actions/setup-dotnet@main
-        with:
-            dotnet-version: '5.0'
+      - uses: actions/setup-dotnet@v1.7.2
 
       - name: Build Solution
         run: dotnet build --configuration Release
@@ -29,9 +27,8 @@ jobs:
       - name: Create Package
         run: dotnet pack Lunar --configuration Release
       
-      - uses: actions/setup-dotnet@main
+      - uses: actions/setup-dotnet@v1.7.2
         with:
-            dotnet-version: '5.0'
             source-url: https://nuget.pkg.github.com/${{github.actor}}
         env:
             NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
