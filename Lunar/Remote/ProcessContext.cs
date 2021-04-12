@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -34,15 +35,13 @@ namespace Lunar.Remote
         {
             _apiSetMap = new ApiSetMap();
 
-            _moduleCache = new Dictionary<string, Module>(StringComparer.OrdinalIgnoreCase);
+            _moduleCache = new ConcurrentDictionary<string, Module>(StringComparer.OrdinalIgnoreCase);
 
             _symbolHandler = new SymbolHandler(process);
 
             Memory = new Memory(process.SafeHandle);
 
             Process = process;
-
-            Refresh();
         }
 
         internal void CallRoutine(IntPtr routineAddress, params dynamic[] arguments)
@@ -107,11 +106,16 @@ namespace Lunar.Remote
             }
         }
 
+        internal void ClearModuleCache()
+        {
+            _moduleCache.Clear();
+        }
+
         internal IntPtr GetFunctionAddress(string moduleName, string functionName)
         {
             var containingModule = GetModule(moduleName);
 
-            var function = containingModule.PeImage.Value.ExportDirectory.GetExportedFunction(functionName);
+            var function = containingModule.PeImage.ExportDirectory.GetExportedFunction(functionName);
 
             if (function is null)
             {
@@ -125,7 +129,7 @@ namespace Lunar.Remote
         {
             var containingModule = GetModule(moduleName);
 
-            var function = containingModule.PeImage.Value.ExportDirectory.GetExportedFunction(functionOrdinal);
+            var function = containingModule.PeImage.ExportDirectory.GetExportedFunction(functionOrdinal);
 
             if (function is null)
             {
@@ -145,47 +149,9 @@ namespace Lunar.Remote
             return GetModule("ntdll.dll").Address + _symbolHandler.GetSymbol(symbolName).RelativeAddress;
         }
 
-        internal void Refresh()
+        internal void NotifyModuleLoad(IntPtr moduleAddress, string moduleFilePath)
         {
-            _moduleCache.Clear();
-
-            // Query the process for the addresses of its modules
-
-            const int arbitraryModuleAmount = 1024;
-
-            Span<IntPtr> moduleAddresses = stackalloc IntPtr[arbitraryModuleAmount];
-
-            var moduleType = Process.GetArchitecture() == Architecture.X86 ? ModuleType.X86 : ModuleType.X64;
-
-            if (!Kernel32.K32EnumProcessModulesEx(Process.SafeHandle, out moduleAddresses[0], IntPtr.Size * arbitraryModuleAmount, out var sizeNeeded, moduleType))
-            {
-                throw new Win32Exception();
-            }
-
-            Span<byte> moduleFilePathBytes = stackalloc byte[Encoding.Unicode.GetMaxByteCount(Constants.MaxPath)];
-
-            foreach (var moduleAddress in moduleAddresses[..(sizeNeeded / IntPtr.Size)])
-            {
-                moduleFilePathBytes.Clear();
-
-                // Retrieve the file path of the module
-
-                if (!Kernel32.K32GetModuleFileNameEx(Process.SafeHandle, moduleAddress, out moduleFilePathBytes[0], Encoding.Unicode.GetCharCount(moduleFilePathBytes)))
-                {
-                    throw new Win32Exception();
-                }
-
-                var moduleFilePath = Encoding.Unicode.GetString(moduleFilePathBytes).TrimEnd('\0');
-
-                if (Environment.Is64BitOperatingSystem && Process.GetArchitecture() == Architecture.X86)
-                {
-                    // Redirect the file path to the WOW64 directory
-
-                    moduleFilePath = moduleFilePath.Replace("System32", "SysWOW64", StringComparison.OrdinalIgnoreCase);
-                }
-
-                _moduleCache.Add(Path.GetFileName(moduleFilePath), new Module(moduleAddress, new Lazy<PeImage>(() => new PeImage(File.ReadAllBytes(moduleFilePath)))));
-            }
+            _moduleCache.TryAdd(Path.GetFileName(moduleFilePath), new Module(moduleAddress, new PeImage(File.ReadAllBytes(moduleFilePath))));
         }
 
         internal string ResolveModuleName(string moduleName)
@@ -236,12 +202,59 @@ namespace Lunar.Remote
         {
             moduleName = ResolveModuleName(moduleName);
 
-            if (!_moduleCache.TryGetValue(moduleName, out var module))
+            if (_moduleCache.TryGetValue(moduleName, out var module))
             {
-                throw new ApplicationException($"Failed to find the module {moduleName.ToLower()} in the process");
+                return module;
             }
 
-            return module;
+            // Query the process for an array of its module addresses
+
+            const int arbitraryModuleAmount = 512;
+
+            Span<IntPtr> moduleAddressArray = stackalloc IntPtr[arbitraryModuleAmount];
+
+            var moduleType = Process.GetArchitecture() == Architecture.X86 ? ModuleType.X86 : ModuleType.X64;
+
+            if (!Kernel32.K32EnumProcessModulesEx(Process.SafeHandle, out moduleAddressArray[0], IntPtr.Size * arbitraryModuleAmount, out var sizeNeeded, moduleType))
+            {
+                throw new Win32Exception();
+            }
+
+            Span<byte> moduleFilePathBytes = stackalloc byte[Encoding.Unicode.GetMaxByteCount(Constants.MaxPath)];
+
+            foreach (var moduleAddress in moduleAddressArray[..(sizeNeeded / IntPtr.Size)])
+            {
+                moduleFilePathBytes.Clear();
+
+                // Retrieve the file path of the module
+
+                if (!Kernel32.K32GetModuleFileNameEx(Process.SafeHandle, moduleAddress, out moduleFilePathBytes[0], Encoding.Unicode.GetCharCount(moduleFilePathBytes)))
+                {
+                    throw new Win32Exception();
+                }
+
+                var moduleFilePath = Encoding.Unicode.GetString(moduleFilePathBytes).TrimEnd('\0');
+
+                if (Environment.Is64BitOperatingSystem && Process.GetArchitecture() == Architecture.X86)
+                {
+                    // Redirect the file path to the WOW64 directory
+
+                    moduleFilePath = moduleFilePath.Replace("System32", "SysWOW64", StringComparison.OrdinalIgnoreCase);
+                }
+
+                if (!moduleName.Equals(Path.GetFileName(moduleFilePath), StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                module = new Module(moduleAddress, new PeImage(File.ReadAllBytes(moduleFilePath)));
+
+                _moduleCache.TryAdd(Path.GetFileName(moduleFilePath), module);
+
+                return module;
+            }
+
+            throw new ApplicationException($"Failed to find the module {moduleName.ToLower()} in the process");
         }
 
         private IntPtr ResolveForwardedFunction(string forwarderString)
@@ -252,7 +265,7 @@ namespace Lunar.Remote
 
                 var forwardedModule = GetModule($"{forwardedData[0]}.dll");
 
-                var forwardedFunction = forwardedData[1].StartsWith("#") ? forwardedModule.PeImage.Value.ExportDirectory.GetExportedFunction(int.Parse(forwardedData[1].Replace("#", string.Empty))) : forwardedModule.PeImage.Value.ExportDirectory.GetExportedFunction(forwardedData[1]);
+                var forwardedFunction = forwardedData[1].StartsWith("#") ? forwardedModule.PeImage.ExportDirectory.GetExportedFunction(int.Parse(forwardedData[1].Replace("#", string.Empty))) : forwardedModule.PeImage.ExportDirectory.GetExportedFunction(forwardedData[1]);
 
                 if (forwardedFunction is null)
                 {

@@ -286,7 +286,7 @@ namespace Lunar
                 }
             }
 
-            _processContext.Refresh();
+            _processContext.ClearModuleCache();
         }
 
         private void InitialiseSecurityCookie()
@@ -482,6 +482,8 @@ namespace Lunar
                     {
                         throw new ApplicationException($"Failed to load the dependency {dependency.Name} into the process");
                     }
+
+                    _processContext.NotifyModuleLoad(dependencyAddress, dependencyFilePath);
                 }
 
                 finally
@@ -489,8 +491,6 @@ namespace Lunar
                     _processContext.Memory.FreeBuffer(dependencyFilePathAddress);
                 }
             }
-
-            _processContext.Refresh();
         }
 
         private void MapHeaders()
