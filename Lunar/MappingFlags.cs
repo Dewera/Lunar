@@ -9,7 +9,7 @@ namespace Lunar
     public enum MappingFlags
     {
         /// <summary>
-        /// Default flag
+        /// Default value
         /// </summary>
         None = 0,
         /// <summary>
@@ -17,7 +17,7 @@ namespace Lunar
         /// </summary>
         DiscardHeaders = 1,
         /// <summary>
-        /// Specifies that any TLS callbacks and DllMain should not be called
+        /// Specifies that the entry point of any TLS callbacks and the DLL should not be called
         /// </summary>
         SkipInitialisationRoutines = 2
     }

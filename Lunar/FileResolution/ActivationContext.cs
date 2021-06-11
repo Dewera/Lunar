@@ -1,30 +1,24 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Xml.Linq;
-using Lunar.Extensions;
-using Lunar.FileResolution.Structures;
+using Lunar.FileResolution.Records;
 
 namespace Lunar.FileResolution
 {
     internal sealed class ActivationContext
     {
-        private readonly ILookup<int, ManifestDirectory> _directoryCache;
-
+        private readonly Architecture _architecture;
+        private readonly Lazy<ILookup<int, ManifestDirectory>> _directoryCache;
         private readonly XDocument? _manifest;
 
-        private readonly Process _process;
-
-        internal ActivationContext(XDocument? manifest, Process process)
+        internal ActivationContext(Architecture architecture, XDocument? manifest)
         {
-            _directoryCache = GetManifestDirectories(process).ToLookup(directory => directory.Hash);
-
+            _architecture = architecture;
+            _directoryCache = new Lazy<ILookup<int, ManifestDirectory>>(() => GetManifestDirectories().ToLookup(directory => directory.Hash));
             _manifest = manifest;
-
-            _process = process;
         }
 
         internal string? ProbeManifest(string fileName)
@@ -34,20 +28,21 @@ namespace Lunar.FileResolution
                 return null;
             }
 
-            var @namespace = _manifest.Root.GetDefaultNamespace();
+            // Build the manifest tree that holds the dependency references
 
-            foreach (var dependency in _manifest.Descendants(@namespace + "dependency").Elements(@namespace + "dependentAssembly").Elements(@namespace + "assemblyIdentity"))
+            var @namespace = _manifest.Root.GetDefaultNamespace();
+            var elementName1 = @namespace + "dependency";
+            var elementName2 = @namespace + "dependentAssembly";
+            var elementName3 = @namespace + "assemblyIdentity";
+
+            foreach (var dependency in _manifest.Descendants(elementName1).Elements(elementName2).Elements(elementName3))
             {
                 // Parse the attributes of the dependency
 
                 var architecture = dependency.Attribute("processorArchitecture")?.Value;
-
                 var language = dependency.Attribute("language")?.Value;
-
                 var name = dependency.Attribute("name")?.Value;
-
                 var token = dependency.Attribute("publicKeyToken")?.Value;
-
                 var version = dependency.Attribute("version")?.Value;
 
                 if (architecture is null || language is null || name is null || token is null || version is null)
@@ -57,7 +52,7 @@ namespace Lunar.FileResolution
 
                 if (architecture == "*")
                 {
-                    architecture = _process.GetArchitecture() == Architecture.X86 ? "x86" : "amd64";
+                    architecture = _architecture == Architecture.X86 ? "x86" : "amd64";
                 }
 
                 if (language == "*")
@@ -67,18 +62,18 @@ namespace Lunar.FileResolution
 
                 // Create a hash for the dependency using the architecture, name and token
 
-                var dependencyHash = string.Join(string.Empty, architecture, name.ToLower(), token).GetHashCode();
+                var dependencyHash = $"{architecture}{name.ToLower()}{token}".GetHashCode();
 
                 // Query the cache for a matching list of directories
 
-                if (!_directoryCache.Contains(dependencyHash))
+                if (!_directoryCache.Value.Contains(dependencyHash))
                 {
                     continue;
                 }
 
-                var matchingDirectories = _directoryCache[dependencyHash].Where(directory => directory.Language.Equals(language, StringComparison.OrdinalIgnoreCase));
+                var matchingDirectories = _directoryCache.Value[dependencyHash].Where(directory => directory.Language.Equals(language, StringComparison.OrdinalIgnoreCase));
 
-                // Look for the directory that holds the dependency
+                // Search for the directory that holds the dependency
 
                 var dependencyVersion = new Version(version);
 
@@ -110,25 +105,21 @@ namespace Lunar.FileResolution
             return null;
         }
 
-        private static IEnumerable<ManifestDirectory> GetManifestDirectories(Process process)
+        private IEnumerable<ManifestDirectory> GetManifestDirectories()
         {
-            var architecture = process.GetArchitecture() == Architecture.X86 ? "x86" : "amd64";
-
             var sxsDirectory = new DirectoryInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "WinSxS"));
 
-            foreach (var directory in sxsDirectory.EnumerateDirectories().Where(directory => directory.Name.StartsWith(architecture)))
+            foreach (var directory in sxsDirectory.EnumerateDirectories())
             {
                 var nameComponents = directory.Name.Split("_");
-
                 var language = nameComponents[^2];
-
                 var version = new Version(nameComponents[^3]);
 
-                // Create a hash for the directory name, skipping the version, language and hash
+                // Create a hash for the directory, skipping the version, language and hash
 
-                var nameHash = string.Join(string.Empty, nameComponents[..^3]).GetHashCode();
+                var directoryHash = string.Join(string.Empty, nameComponents[..^3]).GetHashCode();
 
-                yield return new ManifestDirectory(nameHash, language, directory.FullName, version);
+                yield return new ManifestDirectory(directoryHash, language, directory.FullName, version);
             }
         }
     }

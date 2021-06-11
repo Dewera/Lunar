@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Runtime.InteropServices;
-using Lunar.Native.Enumerations;
+using Lunar.Native.Enums;
 using Microsoft.Win32.SafeHandles;
 
 namespace Lunar.Native.PInvoke

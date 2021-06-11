@@ -12,12 +12,14 @@ set(CMAKE_CXX_STANDARD 20)
 
 set(CMAKE_BUILD_TYPE Release)
 
-# /GL - Enables cross module optimisations by delaying code generation to link time
-# /Oi - Enables intrinsic functions
-# /Oy - Suppresses creation of frame pointers on the call stack
-# /O2 - Maximum optimisation
+# /guard:cf - Enables control flow guard
+# /GL       - Enables cross module optimisations by delaying code generation to link time
+# /GS       - Adds a security check to help detect stack buffer overruns
+# /Oi       - Enables intrinsic functions
+# /Oy       - Suppresses creation of frame pointers on the call stack
+# /O2       - Maximum optimisation
 
-set(MSVC_COMPILE_FLAGS /GL /Oi /Oy /O2)
+set(MSVC_COMPILE_FLAGS /guard:cf /GL /GS /Oi /Oy /O2)
 
 target_compile_options(Target PUBLIC ${MSVC_COMPILE_FLAGS})
 

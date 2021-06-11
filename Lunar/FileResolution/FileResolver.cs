@@ -9,14 +9,14 @@ namespace Lunar.FileResolution
 {
     internal sealed class FileResolver
     {
-        private readonly Process _process;
-
+        private readonly Architecture _architecture;
+        private readonly string _processDirectoryPath;
         private readonly string? _rootDirectoryPath;
 
         internal FileResolver(Process process, string? rootDirectoryPath)
         {
-            _process = process;
-
+            _architecture = process.GetArchitecture();
+            _processDirectoryPath = Path.GetDirectoryName(process.MainModule!.FileName!)!;
             _rootDirectoryPath = rootDirectoryPath;
         }
 
@@ -24,7 +24,7 @@ namespace Lunar.FileResolution
         {
             // Check for .local redirection
 
-            var dotLocalFilePath = Path.Combine(_process.MainModule!.FileName!, ".local", fileName);
+            var dotLocalFilePath = Path.Combine(_processDirectoryPath, ".local", fileName);
 
             if (File.Exists(dotLocalFilePath))
             {
@@ -54,7 +54,7 @@ namespace Lunar.FileResolution
 
             // Search the directory from which the process was loaded
 
-            var processDirectoryFilePath = Path.Combine(_process.MainModule!.FileName!, fileName);
+            var processDirectoryFilePath = Path.Combine(_processDirectoryPath, fileName);
 
             if (File.Exists(processDirectoryFilePath))
             {
@@ -63,8 +63,7 @@ namespace Lunar.FileResolution
 
             // Search the System directory
 
-            var systemDirectoryPath = _process.GetArchitecture() == Architecture.X86 ? Environment.GetFolderPath(Environment.SpecialFolder.SystemX86) : Environment.SystemDirectory;
-
+            var systemDirectoryPath = _architecture == Architecture.X86 ? Environment.GetFolderPath(Environment.SpecialFolder.SystemX86) : Environment.SystemDirectory;
             var systemDirectoryFilePath = Path.Combine(systemDirectoryPath, fileName);
 
             if (File.Exists(systemDirectoryFilePath))

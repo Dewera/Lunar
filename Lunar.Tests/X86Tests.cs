@@ -10,16 +10,15 @@ namespace Lunar.Tests
     public sealed class X86Tests : IDisposable
     {
         private readonly string _testBinaryDirectoryPath;
-
         private readonly Process _process;
 
         public X86Tests()
         {
             _testBinaryDirectoryPath = Path.GetFullPath(@"..\..\..\TestBinaries\bin\x86\Release");
-
             _process = new Process {StartInfo = {FileName = Path.Combine(_testBinaryDirectoryPath, "Target.exe"), UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden}};
-
             _process.Start();
+
+            // Wait an arbitrary amount of time (10 milliseconds) for the process to initialise
 
             Thread.Sleep(10);
         }
@@ -27,7 +26,6 @@ namespace Lunar.Tests
         public void Dispose()
         {
             _process.Kill();
-
             _process.Dispose();
         }
 
@@ -38,7 +36,6 @@ namespace Lunar.Tests
         public void TestMap(string dllName)
         {
             var libraryMapper = new LibraryMapper(_process, Path.Combine(_testBinaryDirectoryPath, dllName));
-
             libraryMapper.MapLibrary();
 
             Assert.NotEqual(libraryMapper.DllBaseAddress, IntPtr.Zero);
@@ -51,9 +48,7 @@ namespace Lunar.Tests
         public void TestUnmap(string dllName)
         {
             var libraryMapper = new LibraryMapper(_process, Path.Combine(_testBinaryDirectoryPath, dllName));
-
             libraryMapper.MapLibrary();
-
             libraryMapper.UnmapLibrary();
 
             Assert.Equal(libraryMapper.DllBaseAddress, IntPtr.Zero);

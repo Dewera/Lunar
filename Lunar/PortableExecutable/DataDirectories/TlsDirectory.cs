@@ -2,12 +2,12 @@
 using System.Collections.Generic;
 using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
-using Lunar.Native.Structures;
-using Lunar.PortableExecutable.Structures;
+using Lunar.Native.Structs;
+using Lunar.PortableExecutable.Records;
 
 namespace Lunar.PortableExecutable.DataDirectories
 {
-    internal sealed class TlsDirectory : DataDirectory
+    internal sealed class TlsDirectory : DataDirectoryBase
     {
         internal TlsDirectory(PEHeaders headers, Memory<byte> imageBytes) : base(headers.PEHeader!.ThreadLocalStorageTableDirectory, headers, imageBytes) { }
 
@@ -34,7 +34,6 @@ namespace Lunar.PortableExecutable.DataDirectories
                     // Read the callback address
 
                     var callbackAddressOffset = RvaToOffset(VaToRva(tlsDirectory.AddressOfCallBacks)) + sizeof(int) * callbackIndex;
-
                     var callbackAddress = MemoryMarshal.Read<int>(ImageBytes.Span[callbackAddressOffset..]);
 
                     if (callbackAddress == 0)
@@ -62,7 +61,6 @@ namespace Lunar.PortableExecutable.DataDirectories
                     // Read the callback address
 
                     var callbackAddressOffset = RvaToOffset(VaToRva(tlsDirectory.AddressOfCallBacks)) + sizeof(long) * callbackIndex;
-
                     var callbackAddress = MemoryMarshal.Read<long>(ImageBytes.Span[callbackAddressOffset..]);
 
                     if (callbackAddress == 0)

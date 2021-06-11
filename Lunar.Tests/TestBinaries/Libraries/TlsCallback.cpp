@@ -24,7 +24,6 @@ void __stdcall TlsCallback(void* moduleHandle, unsigned long reason, void* reser
 #ifdef _M_AMD64
     #pragma comment (linker, "/INCLUDE:_tls_used")
     #pragma comment (linker, "/INCLUDE:callback")
-
     #pragma const_seg(".CRT$XLA")
     extern "C" const PIMAGE_TLS_CALLBACK callback = TlsCallback;
     #pragma const_seg()
@@ -33,7 +32,6 @@ void __stdcall TlsCallback(void* moduleHandle, unsigned long reason, void* reser
 #ifdef _M_IX86
     #pragma comment (linker, "/INCLUDE:__tls_used")
     #pragma comment (linker, "/INCLUDE:_callback")
-
     #pragma data_seg(".CRT$XLA")
     extern "C" PIMAGE_TLS_CALLBACK callback = TlsCallback;
     #pragma data_seg()

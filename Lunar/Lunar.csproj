@@ -3,21 +3,15 @@
     <PropertyGroup>
         <TargetFramework>net5.0</TargetFramework>
         <Nullable>enable</Nullable>
-        <PackageVersion>1.4.14</PackageVersion>
+        <PackageVersion>1.5.0</PackageVersion>
         <Authors>Dewera</Authors>
         <Description>A lightweight native DLL mapping library that supports mapping directly from memory</Description>
         <RepositoryUrl>https://github.com/Dewera/Lunar</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
-        <LangVersion>9</LangVersion>
     </PropertyGroup>
 
     <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
       <DocumentationFile>bin\Release\Lunar.xml</DocumentationFile>
-      <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
-    </PropertyGroup>
-
-    <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
-      <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     </PropertyGroup>
 
 </Project>

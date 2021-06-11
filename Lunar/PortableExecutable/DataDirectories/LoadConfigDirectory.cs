@@ -1,35 +1,16 @@
 ﻿using System;
 using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
-using Lunar.Native.Structures;
-using Lunar.PortableExecutable.Structures;
+using Lunar.Native.Structs;
+using Lunar.PortableExecutable.Records;
 
 namespace Lunar.PortableExecutable.DataDirectories
 {
-    internal sealed class LoadConfigDirectory : DataDirectory
+    internal sealed class LoadConfigDirectory : DataDirectoryBase
     {
         internal LoadConfigDirectory(PEHeaders headers, Memory<byte> imageBytes) : base(headers.PEHeader!.LoadConfigTableDirectory, headers, imageBytes) { }
 
-        internal ExceptionTable? GetExceptionTable()
-        {
-            if (!IsValid)
-            {
-                return null;
-            }
-
-            if (Headers.PEHeader!.DllCharacteristics.HasFlag(DllCharacteristics.NoSeh))
-            {
-                return new ExceptionTable(-1, -1);
-            }
-
-            // Read the load config directory
-
-            var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory32>(ImageBytes.Span[DirectoryOffset..]);
-
-            return new ExceptionTable(loadConfigDirectory.SEHandlerCount, VaToRva(loadConfigDirectory.SEHandlerTable));
-        }
-
-        internal SecurityCookie? GetSecurityCookie()
+        internal LoadConfigData? GetLoadConfigData()
         {
             if (!IsValid)
             {
@@ -42,7 +23,20 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                 var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory32>(ImageBytes.Span[DirectoryOffset..]);
 
-                return loadConfigDirectory.SecurityCookie == 0 ? null : new SecurityCookie(VaToRva(loadConfigDirectory.SecurityCookie));
+                // Parse the exception table
+
+                var exceptionTable = Headers.PEHeader!.DllCharacteristics.HasFlag(DllCharacteristics.NoSeh) ? new ExceptionTable(-1, -1) : new ExceptionTable(loadConfigDirectory.SEHandlerCount, VaToRva(loadConfigDirectory.SEHandlerTable));
+
+                // Parse the security cookie
+
+                SecurityCookie? securityCookie = null;
+
+                if (loadConfigDirectory.SecurityCookie != 0)
+                {
+                    securityCookie = new SecurityCookie(VaToRva(loadConfigDirectory.SecurityCookie));
+                }
+
+                return new LoadConfigData(exceptionTable, loadConfigDirectory.GuardFlags, securityCookie);
             }
 
             else
@@ -51,7 +45,16 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                 var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory64>(ImageBytes.Span[DirectoryOffset..]);
 
-                return loadConfigDirectory.SecurityCookie == 0 ? null : new SecurityCookie(VaToRva(loadConfigDirectory.SecurityCookie));
+                // Parse the security cookie
+
+                SecurityCookie? securityCookie = null;
+
+                if (loadConfigDirectory.SecurityCookie != 0)
+                {
+                    securityCookie = new SecurityCookie(VaToRva(loadConfigDirectory.SecurityCookie));
+                }
+
+                return new LoadConfigData(null, loadConfigDirectory.GuardFlags, securityCookie);
             }
         }
     }

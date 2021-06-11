@@ -8,17 +8,11 @@ namespace Lunar.PortableExecutable
     internal sealed class PeImage
     {
         internal ExportDirectory ExportDirectory { get; }
-
         internal PEHeaders Headers { get; }
-
         internal ImportDirectory ImportDirectory { get; }
-
         internal LoadConfigDirectory LoadConfigDirectory { get; }
-
         internal RelocationDirectory RelocationDirectory { get; }
-
         internal ResourceDirectory ResourceDirectory { get; }
-
         internal TlsDirectory TlsDirectory { get; }
 
         internal PeImage(Memory<byte> imageBytes)
@@ -31,17 +25,11 @@ namespace Lunar.PortableExecutable
             }
 
             ExportDirectory = new ExportDirectory(peReader.PEHeaders, imageBytes);
-
             Headers = peReader.PEHeaders;
-
             ImportDirectory = new ImportDirectory(peReader.PEHeaders, imageBytes);
-
             LoadConfigDirectory = new LoadConfigDirectory(peReader.PEHeaders, imageBytes);
-
             RelocationDirectory = new RelocationDirectory(peReader.PEHeaders, imageBytes);
-
             ResourceDirectory = new ResourceDirectory(peReader.PEHeaders, imageBytes);
-
             TlsDirectory = new TlsDirectory(peReader.PEHeaders, imageBytes);
         }
     }

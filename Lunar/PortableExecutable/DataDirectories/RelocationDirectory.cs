@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Lunar.Native.Enumerations;
-using Lunar.Native.Structures;
-using Lunar.PortableExecutable.Structures;
+using Lunar.Native.Enums;
+using Lunar.Native.Structs;
+using Lunar.PortableExecutable.Records;
 
 namespace Lunar.PortableExecutable.DataDirectories
 {
-    internal sealed class RelocationDirectory : DataDirectory
+    internal sealed class RelocationDirectory : DataDirectoryBase
     {
         internal RelocationDirectory(PEHeaders headers, Memory<byte> imageBytes) : base(headers.PEHeader!.BaseRelocationTableDirectory, headers, imageBytes) { }
 
@@ -21,8 +21,9 @@ namespace Lunar.PortableExecutable.DataDirectories
             }
 
             var currentRelocationBlockOffset = DirectoryOffset;
+            var maxOffset = DirectoryOffset + Headers.PEHeader!.BaseRelocationTableDirectory.Size;
 
-            while (currentRelocationBlockOffset < DirectoryOffset + Headers.PEHeader!.BaseRelocationTableDirectory.Size)
+            while (currentRelocationBlockOffset < maxOffset)
             {
                 // Read the relocation block
 
@@ -40,14 +41,13 @@ namespace Lunar.PortableExecutable.DataDirectories
                     // Read the relocation
 
                     var relocationOffset = currentRelocationBlockOffset + Unsafe.SizeOf<ImageBaseRelocation>() + sizeof(short) * relocationIndex;
-
                     var relocation = MemoryMarshal.Read<short>(ImageBytes.Span[relocationOffset..]);
 
                     // The type is located in the upper 4 bits of the relocation
 
                     var type = (ushort) relocation >> 12;
 
-                    // The offset if located in the lower 12 bits of the relocation
+                    // The offset is located in the lower 12 bits of the relocation
 
                     var offset = relocation & 0xFFF;
 

@@ -1,8 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lunar", "Lunar\Lunar.csproj", "{45BF8326-7717-4F9B-921B-E9B08A86F40F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lunar", "Lunar\Lunar.csproj", "{161C2898-A3AD-407A-8BB8-9BD581F62A17}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lunar.Tests", "Lunar.Tests\Lunar.Tests.csproj", "{48047A3E-A3CC-4262-A48D-6AC91B4D0872}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lunar.Tests", "Lunar.Tests\Lunar.Tests.csproj", "{D0D34007-D771-4D1F-93DC-B6C63AC6BEF2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -10,13 +10,13 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{45BF8326-7717-4F9B-921B-E9B08A86F40F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{45BF8326-7717-4F9B-921B-E9B08A86F40F}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{45BF8326-7717-4F9B-921B-E9B08A86F40F}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{45BF8326-7717-4F9B-921B-E9B08A86F40F}.Release|Any CPU.Build.0 = Release|Any CPU
-		{48047A3E-A3CC-4262-A48D-6AC91B4D0872}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{48047A3E-A3CC-4262-A48D-6AC91B4D0872}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{48047A3E-A3CC-4262-A48D-6AC91B4D0872}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{48047A3E-A3CC-4262-A48D-6AC91B4D0872}.Release|Any CPU.Build.0 = Release|Any CPU
+		{161C2898-A3AD-407A-8BB8-9BD581F62A17}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{161C2898-A3AD-407A-8BB8-9BD581F62A17}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{161C2898-A3AD-407A-8BB8-9BD581F62A17}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{161C2898-A3AD-407A-8BB8-9BD581F62A17}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D0D34007-D771-4D1F-93DC-B6C63AC6BEF2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D0D34007-D771-4D1F-93DC-B6C63AC6BEF2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D0D34007-D771-4D1F-93DC-B6C63AC6BEF2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D0D34007-D771-4D1F-93DC-B6C63AC6BEF2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

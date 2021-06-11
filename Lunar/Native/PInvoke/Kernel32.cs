@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Runtime.InteropServices;
-using Lunar.Native.Enumerations;
+using Lunar.Native.Enums;
 using Microsoft.Win32.SafeHandles;
 
 namespace Lunar.Native.PInvoke
@@ -17,10 +17,10 @@ namespace Lunar.Native.PInvoke
         internal static extern bool IsWow64Process(SafeProcessHandle processHandle, out bool isWow64Process);
 
         [DllImport("kernel32.dll", SetLastError = true)]
-        internal static extern bool K32EnumProcessModulesEx(SafeProcessHandle processHandle, out IntPtr moduleAddressArray, int size, out int sizeNeeded, ModuleType moduleType);
+        internal static extern bool K32EnumProcessModulesEx(SafeProcessHandle processHandle, out byte bytes, int size, out int sizeNeeded, ModuleType moduleType);
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        internal static extern bool K32GetModuleFileNameEx(SafeProcessHandle processHandle, IntPtr moduleAddress, out byte bytes, int size);
+        internal static extern bool K32GetModuleFileNameEx(SafeProcessHandle processHandle, IntPtr address, out byte bytes, int size);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         internal static extern bool ReadProcessMemory(SafeProcessHandle processHandle, IntPtr address, out byte bytes, nint size, IntPtr bytesReadCount);

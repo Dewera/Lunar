@@ -4,12 +4,12 @@ using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
-using Lunar.Native.Structures;
-using Lunar.PortableExecutable.Structures;
+using Lunar.Native.Structs;
+using Lunar.PortableExecutable.Records;
 
 namespace Lunar.PortableExecutable.DataDirectories
 {
-    internal sealed class ImportDirectory : DataDirectory
+    internal sealed class ImportDirectory : DataDirectoryBase
     {
         internal ImportDirectory(PEHeaders headers, Memory<byte> imageBytes) : base(headers.PEHeader!.ImportTableDirectory, headers, imageBytes) { }
 
@@ -25,7 +25,6 @@ namespace Lunar.PortableExecutable.DataDirectories
                 // Read the descriptor
 
                 var descriptorOffset = DirectoryOffset + Unsafe.SizeOf<ImageImportDescriptor>() * descriptorIndex;
-
                 var descriptor = MemoryMarshal.Read<ImageImportDescriptor>(ImageBytes.Span[descriptorOffset..]);
 
                 if (descriptor.FirstThunk == 0)
@@ -36,17 +35,13 @@ namespace Lunar.PortableExecutable.DataDirectories
                 // Read the descriptor name
 
                 var descriptorNameOffset = RvaToOffset(descriptor.Name);
-
                 var descriptorNameLength = ImageBytes.Span[descriptorNameOffset..].IndexOf(byte.MinValue);
-
                 var descriptorName = Encoding.UTF8.GetString(ImageBytes.Span.Slice(descriptorNameOffset, descriptorNameLength));
 
                 // Read the functions imported under the descriptor
 
                 var offsetTableOffset = RvaToOffset(descriptor.FirstThunk);
-
                 var thunkTableOffset = descriptor.OriginalFirstThunk == 0 ? offsetTableOffset : RvaToOffset(descriptor.OriginalFirstThunk);
-
                 var functions = GetImportedFunctions(offsetTableOffset, thunkTableOffset);
 
                 yield return new ImportDescriptor(functions, descriptorName);
@@ -64,7 +59,6 @@ namespace Lunar.PortableExecutable.DataDirectories
                     // Read the function thunk
 
                     var functionThunkOffset = thunkTableOffset + sizeof(int) * functionIndex;
-
                     var functionThunk = MemoryMarshal.Read<int>(ImageBytes.Span[functionThunkOffset..]);
 
                     if (functionThunk == 0)
@@ -86,15 +80,12 @@ namespace Lunar.PortableExecutable.DataDirectories
                         // Read the function ordinal
 
                         var functionOrdinalOffset = RvaToOffset(functionThunk);
-
                         var functionOrdinal = MemoryMarshal.Read<short>(ImageBytes.Span[functionOrdinalOffset..]);
 
                         // Read the function name
 
                         var functionNameOffset = functionOrdinalOffset + sizeof(short);
-
                         var functionNameLength = ImageBytes.Span[functionNameOffset..].IndexOf(byte.MinValue);
-
                         var functionName = Encoding.UTF8.GetString(ImageBytes.Span.Slice(functionNameOffset, functionNameLength));
 
                         yield return new ImportedFunction(functionName, functionOffset, functionOrdinal);
@@ -108,7 +99,6 @@ namespace Lunar.PortableExecutable.DataDirectories
                     // Read the function thunk
 
                     var functionThunkOffset = thunkTableOffset + sizeof(long) * functionIndex;
-
                     var functionThunk = MemoryMarshal.Read<long>(ImageBytes.Span[functionThunkOffset..]);
 
                     if (functionThunk == 0)
@@ -130,15 +120,12 @@ namespace Lunar.PortableExecutable.DataDirectories
                         // Read the function ordinal
 
                         var functionOrdinalOffset = RvaToOffset((int) functionThunk);
-
                         var functionOrdinal = MemoryMarshal.Read<short>(ImageBytes.Span[functionOrdinalOffset..]);
 
                         // Read the function name
 
                         var functionNameOffset = functionOrdinalOffset + sizeof(short);
-
                         var functionNameLength = ImageBytes.Span[functionNameOffset..].IndexOf(byte.MinValue);
-
                         var functionName = Encoding.UTF8.GetString(ImageBytes.Span.Slice(functionNameOffset, functionNameLength));
 
                         yield return new ImportedFunction(functionName, functionOffset, functionOrdinal);
