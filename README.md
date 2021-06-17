@@ -95,7 +95,7 @@ public enum MappingFlags
 
 ### Fields
 
-Default flag
+Default value
 
 ```c#
 MappingsFlags.None
@@ -107,7 +107,7 @@ Specifies that the header region of the DLL should not be mapped
 MappingsFlags.DiscardHeaders 
 ```
 
-Specifies that any TLS callbacks and DllMain should not be called
+Specifies that the entry point of any TLS callbacks and the DLL should not be called
 
 ```c#
 MappingsFlags.SkipInitialisationRoutines
