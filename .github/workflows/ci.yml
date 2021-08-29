@@ -2,12 +2,12 @@ name: Continuous Integration
 
 on:
     push:
-        branches: [master]
+      branches: [master]
     pull_request:
-        branches: [master]
+      branches: [master]
 
 jobs:
-  pipeline:
+  build:
     runs-on: [windows-latest]
 
     steps:
@@ -23,15 +23,24 @@ jobs:
         
       - name: Run Tests
         run: dotnet test
+
+  deploy:
+    runs-on: [windows-latest]
+    needs: [build]
+    if: github.event_name == 'push'
+    
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-dotnet@v1
       
       - name: Create Package
         run: dotnet pack Lunar --configuration Release
       
       - uses: actions/setup-dotnet@v1
         with:
-            source-url: https://nuget.pkg.github.com/${{github.actor}}
+          source-url: https://nuget.pkg.github.com/${{github.actor}}
         env:
-            NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
       - name: Publish Package
         run: dotnet nuget push 'Lunar\bin\Release\*.nupkg' --skip-duplicate
