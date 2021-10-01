@@ -23,20 +23,15 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                 var loadConfigDirectory = MemoryMarshal.Read<ImageLoadConfigDirectory32>(ImageBytes.Span[DirectoryOffset..]);
 
-                // Parse the exception table
+                // Parse the exception data
 
-                var exceptionTable = Headers.PEHeader!.DllCharacteristics.HasFlag(DllCharacteristics.NoSeh) ? new ExceptionTable(-1, -1) : new ExceptionTable(loadConfigDirectory.SEHandlerCount, VaToRva(loadConfigDirectory.SEHandlerTable));
+                var exceptionData = Headers.PEHeader!.DllCharacteristics.HasFlag(DllCharacteristics.NoSeh) ? new ExceptionData(-1, -1) : new ExceptionData(loadConfigDirectory.SEHandlerCount, VaToRva(loadConfigDirectory.SEHandlerTable));
 
                 // Parse the security cookie
 
-                SecurityCookie? securityCookie = null;
+                var securityCookie = loadConfigDirectory.SecurityCookie == 0 ? null : new SecurityCookie(VaToRva(loadConfigDirectory.SecurityCookie));
 
-                if (loadConfigDirectory.SecurityCookie != 0)
-                {
-                    securityCookie = new SecurityCookie(VaToRva(loadConfigDirectory.SecurityCookie));
-                }
-
-                return new LoadConfigData(exceptionTable, loadConfigDirectory.GuardFlags, securityCookie);
+                return new LoadConfigData(exceptionData, loadConfigDirectory.GuardFlags, securityCookie);
             }
 
             else
@@ -47,12 +42,7 @@ namespace Lunar.PortableExecutable.DataDirectories
 
                 // Parse the security cookie
 
-                SecurityCookie? securityCookie = null;
-
-                if (loadConfigDirectory.SecurityCookie != 0)
-                {
-                    securityCookie = new SecurityCookie(VaToRva(loadConfigDirectory.SecurityCookie));
-                }
+                var securityCookie = loadConfigDirectory.SecurityCookie == 0 ? null : new SecurityCookie(VaToRva(loadConfigDirectory.SecurityCookie));
 
                 return new LoadConfigData(null, loadConfigDirectory.GuardFlags, securityCookie);
             }

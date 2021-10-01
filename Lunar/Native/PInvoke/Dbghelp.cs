@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 using Lunar.Native.Enums;
+using Lunar.Native.Structs;
 using Microsoft.Win32.SafeHandles;
 
 namespace Lunar.Native.PInvoke
@@ -11,13 +12,13 @@ namespace Lunar.Native.PInvoke
         internal static extern bool SymCleanup(SafeProcessHandle processHandle);
 
         [DllImport("dbghelp.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        internal static extern bool SymFromName(SafeProcessHandle processHandle, string name, out byte bytes);
+        internal static extern bool SymFromName(SafeProcessHandle processHandle, string name, out SymbolInfo symbolInfo);
 
         [DllImport("dbghelp.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        internal static extern bool SymInitialize(SafeProcessHandle processHandle, string? searchPath, bool invadeProcess);
+        internal static extern bool SymInitialize(SafeProcessHandle processHandle, IntPtr searchPath, bool invadeProcess);
 
         [DllImport("dbghelp.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        internal static extern long SymLoadModuleEx(SafeProcessHandle processHandle, IntPtr fileHandle, string imageName, string? moduleName, long dllBase, int dllSize, IntPtr data, int flags);
+        internal static extern long SymLoadModuleEx(SafeProcessHandle processHandle, IntPtr fileHandle, string imageName, IntPtr moduleName, long dllBase, int dllSize, IntPtr data, int flags);
 
         [DllImport("dbghelp.dll")]
         internal static extern SymbolOptions SymSetOptions(SymbolOptions options);

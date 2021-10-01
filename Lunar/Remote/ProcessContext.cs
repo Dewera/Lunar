@@ -12,6 +12,7 @@ using Lunar.FileResolution;
 using Lunar.Native;
 using Lunar.Native.Enums;
 using Lunar.Native.PInvoke;
+using Lunar.Native.Structs;
 using Lunar.PortableExecutable;
 using Lunar.PortableExecutable.Records;
 using Lunar.Remote.Records;
@@ -25,13 +26,13 @@ namespace Lunar.Remote
     {
         internal Process Process { get; }
 
-        private readonly ApiSetResolver _apiSetResolver;
+        private readonly ApiSetMap _apiSetMap;
         private readonly IDictionary<string, Module> _moduleCache;
         private readonly SymbolHandler _symbolHandler;
 
         internal ProcessContext(Process process)
         {
-            _apiSetResolver = new ApiSetResolver();
+            _apiSetMap = new ApiSetMap();
             _moduleCache = new ConcurrentDictionary<string, Module>(StringComparer.OrdinalIgnoreCase);
             _symbolHandler = new SymbolHandler(process.GetArchitecture());
 
@@ -155,6 +156,30 @@ namespace Lunar.Remote
             return function.ForwarderString is null ? moduleAddress + function.RelativeAddress : ResolveForwardedFunction(function.ForwarderString);
         }
 
+        internal IntPtr GetHeapAddress()
+        {
+            if (Process.GetArchitecture() == Architecture.X86)
+            {
+                // Read the process WOW64 PEB
+
+                var pebAddress = Process.QueryInformation<IntPtr>(ProcessInformationType.Wow64Information);
+                var peb = Process.ReadStruct<Peb32>(pebAddress);
+
+                return UnsafeHelpers.WrapPointer(peb.ProcessHeap);
+            }
+
+            else
+            {
+                // Read the process PEB
+            
+                var basicInformation = Process.QueryInformation<ProcessBasicInformation64>(ProcessInformationType.BasicInformation);
+                var pebAddress = UnsafeHelpers.WrapPointer(basicInformation.PebBaseAddress);
+                var peb = Process.ReadStruct<Peb64>(pebAddress);
+                
+                return UnsafeHelpers.WrapPointer(peb.ProcessHeap);
+            }
+        }
+        
         internal IntPtr GetModuleAddress(string moduleName)
         {
             return GetModule(moduleName).Address;
@@ -174,7 +199,7 @@ namespace Lunar.Remote
         {
             if (moduleName.StartsWith("api-ms") || moduleName.StartsWith("ext-ms"))
             {
-                return _apiSetResolver.ResolveApiSet(moduleName) ?? moduleName;
+                return _apiSetMap.ResolveApiSetName(moduleName) ?? moduleName;
             }
 
             return moduleName;
@@ -189,7 +214,7 @@ namespace Lunar.Remote
                 return module;
             }
 
-            // Query the process for a list of the addresses of its modules
+            // Query the process for a list of its module addresses
 
             Span<byte> moduleAddressListBytes = stackalloc byte[IntPtr.Size];
             var moduleType = Process.GetArchitecture() == Architecture.X86 ? ModuleType.X86 : ModuleType.X64;
@@ -201,7 +226,7 @@ namespace Lunar.Remote
 
             if (sizeNeeded > moduleAddressListBytes.Length)
             {
-                // Reallocate the module address span
+                // Reallocate the module address buffer
 
                 moduleAddressListBytes = stackalloc byte[sizeNeeded];
 
@@ -219,7 +244,7 @@ namespace Lunar.Remote
             {
                 moduleFilePathBytes.Clear();
 
-                // Retrieve the file path of the module
+                // Retrieve the module file path
 
                 if (!Kernel32.K32GetModuleFileNameEx(Process.SafeHandle, moduleAddress, out moduleFilePathBytes[0], Encoding.Unicode.GetCharCount(moduleFilePathBytes)))
                 {
@@ -275,7 +300,7 @@ namespace Lunar.Remote
                     throw new ApplicationException($"Failed to find the function {forwardedData[1]} in the module {forwardedData[0].ToLower()}.dll");
                 }
 
-                // Handle cyclic forwarding
+                // Handle cyclical forwarding
 
                 if (forwardedFunction.ForwarderString is null || forwardedFunction.ForwarderString.Equals(forwarderString, StringComparison.OrdinalIgnoreCase))
                 {

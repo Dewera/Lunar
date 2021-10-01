@@ -8,16 +8,16 @@ using Lunar.Utilities;
 
 namespace Lunar.FileResolution
 {
-    internal sealed class ApiSetResolver
+    internal sealed class ApiSetMap
     {
         private readonly IntPtr _apiSetMapAddress;
 
-        internal ApiSetResolver()
+        internal ApiSetMap()
         {
-            _apiSetMapAddress = GetApiSetMapAddress();
+            _apiSetMapAddress = GetNativeAddress();
         }
 
-        internal string? ResolveApiSet(string apiSetName)
+        internal string? ResolveApiSetName(string apiSetName)
         {
             // Read the namespace of the API set
 
@@ -78,7 +78,7 @@ namespace Lunar.FileResolution
             return null;
         }
 
-        private IntPtr GetApiSetMapAddress()
+        private static IntPtr GetNativeAddress()
         {
             var pebAddress = Ntdll.RtlGetCurrentPeb();
 
@@ -86,14 +86,14 @@ namespace Lunar.FileResolution
             {
                 var peb = Marshal.PtrToStructure<Peb64>(pebAddress);
 
-                return SafeHelpers.CreateSafePointer(peb.ApiSetMap);
+                return UnsafeHelpers.WrapPointer(peb.ApiSetMap);
             }
 
             else
             {
                 var peb = Marshal.PtrToStructure<Peb32>(pebAddress);
 
-                return SafeHelpers.CreateSafePointer(peb.ApiSetMap);
+                return UnsafeHelpers.WrapPointer(peb.ApiSetMap);
             }
         }
     }

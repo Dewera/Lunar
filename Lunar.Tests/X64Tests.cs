@@ -32,6 +32,7 @@ namespace Lunar.Tests
         [Theory]
         [InlineData("Basic.dll")]
         [InlineData("Exception.dll")]
+        [InlineData("StaticTls.dll")]
         [InlineData("TlsCallback.dll")]
         public void TestMap(string dllName)
         {
@@ -44,6 +45,7 @@ namespace Lunar.Tests
         [Theory]
         [InlineData("Basic.dll")]
         [InlineData("Exception.dll")]
+        [InlineData("StaticTls.dll")]
         [InlineData("TlsCallback.dll")]
         public void TestUnmap(string dllName)
         {

@@ -11,6 +11,7 @@ A lightweight native DLL mapping library that supports mapping directly from mem
 - Control flow guard setup
 - Exception handler initialisation
 - Security cookie generation
+- Static TLS initialisation
 - SxS dependency resolution
 - TLS callback execution
 - x86 and x64 support
@@ -86,7 +87,7 @@ public void UnmapLibrary();
 
 ### MappingFlags Enum
 
-Defines actions that the mapper should take during the mapping process
+Defines actions that the mapper should perform during the mapping process
 
 ```c#
 [Flags]

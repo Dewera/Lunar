@@ -14,10 +14,10 @@ namespace Lunar.FileResolution
         private readonly Lazy<ILookup<int, ManifestDirectory>> _directoryCache;
         private readonly XDocument? _manifest;
 
-        internal ActivationContext(Architecture architecture, XDocument? manifest)
+        internal ActivationContext(XDocument? manifest, Architecture architecture)
         {
             _architecture = architecture;
-            _directoryCache = new Lazy<ILookup<int, ManifestDirectory>>(() => GetManifestDirectories().ToLookup(directory => directory.Hash));
+            _directoryCache = new Lazy<ILookup<int, ManifestDirectory>>(() => GetManifestDirectories(architecture).ToLookup(directory => directory.Hash));
             _manifest = manifest;
         }
 
@@ -37,7 +37,7 @@ namespace Lunar.FileResolution
 
             foreach (var dependency in _manifest.Descendants(elementName1).Elements(elementName2).Elements(elementName3))
             {
-                // Parse the attributes of the dependency
+                // Parse the dependency attributes
 
                 var architecture = dependency.Attribute("processorArchitecture")?.Value;
                 var language = dependency.Attribute("language")?.Value;
@@ -105,11 +105,12 @@ namespace Lunar.FileResolution
             return null;
         }
 
-        private IEnumerable<ManifestDirectory> GetManifestDirectories()
+        private static IEnumerable<ManifestDirectory> GetManifestDirectories(Architecture architecture)
         {
             var sxsDirectory = new DirectoryInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "WinSxS"));
+            var directoryPrefix = architecture == Architecture.X86 ? "x86" : "amd64";
 
-            foreach (var directory in sxsDirectory.EnumerateDirectories())
+            foreach (var directory in sxsDirectory.EnumerateDirectories().Where(directory => directory.Name.StartsWith(directoryPrefix)))
             {
                 var nameComponents = directory.Name.Split("_");
                 var language = nameComponents[^2];

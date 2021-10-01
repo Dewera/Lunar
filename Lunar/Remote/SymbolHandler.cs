@@ -28,12 +28,9 @@ namespace Lunar.Remote
         {
             // Initialise a native symbol handler
 
-            if (!Dbghelp.SymSetOptions(SymbolOptions.UndecorateName).HasFlag(SymbolOptions.UndecorateName))
-            {
-                throw new Win32Exception();
-            }
+            Dbghelp.SymSetOptions(SymbolOptions.UndecorateName);
 
-            if (!Dbghelp.SymInitialize(Kernel32.GetCurrentProcess(), null, false))
+            if (!Dbghelp.SymInitialize(Kernel32.GetCurrentProcess(), IntPtr.Zero, false))
             {
                 throw new Win32Exception();
             }
@@ -45,7 +42,7 @@ namespace Lunar.Remote
                 // Load the symbol file into the symbol handler
 
                 var symbolFileSize = new FileInfo(_pdbFilePath).Length;
-                var symbolTableAddress = Dbghelp.SymLoadModuleEx(Kernel32.GetCurrentProcess(), IntPtr.Zero, _pdbFilePath, null, pseudoDllAddress, (int) symbolFileSize, IntPtr.Zero, 0);
+                var symbolTableAddress = Dbghelp.SymLoadModuleEx(Kernel32.GetCurrentProcess(), IntPtr.Zero, _pdbFilePath, IntPtr.Zero, pseudoDllAddress, (int) symbolFileSize, IntPtr.Zero, 0);
 
                 if (symbolTableAddress == 0)
                 {
@@ -61,7 +58,7 @@ namespace Lunar.Remote
 
                     // Retrieve the symbol information
 
-                    if (!Dbghelp.SymFromName(Kernel32.GetCurrentProcess(), symbolName, out symbolInformationBytes[0]))
+                    if (!Dbghelp.SymFromName(Kernel32.GetCurrentProcess(), symbolName, out Unsafe.As<byte, SymbolInfo>(ref symbolInformationBytes[0])))
                     {
                         throw new Win32Exception();
                     }
@@ -85,7 +82,7 @@ namespace Lunar.Remote
 
         private static async Task<string> FindOrDownloadSymbolFileAsync(Architecture architecture)
         {
-            // Read the PDB data of ntdll.dll
+            // Read the ntdll.dll PDB data
 
             var systemDirectoryPath = architecture == Architecture.X86 ? Environment.GetFolderPath(Environment.SpecialFolder.SystemX86) : Environment.SystemDirectory;
             var ntdllFilePath = Path.Combine(systemDirectoryPath, "ntdll.dll");
@@ -99,7 +96,7 @@ namespace Lunar.Remote
             var cacheDirectoryPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Lunar", "Dependencies");
             var cacheDirectory = Directory.CreateDirectory(cacheDirectoryPath);
 
-            // Check if the correct version of the PDB is already cached
+            // Check if the correct PDB version is already cached
 
             var pdbFilePath = Path.Combine(cacheDirectory.FullName, $"{pdbData.Path}-{pdbData.Guid:N}.pdb");
 
@@ -108,7 +105,7 @@ namespace Lunar.Remote
                 return pdbFilePath;
             }
 
-            // Clear the directory of any old PDB versions
+            // Delete any old PDB versions
 
             foreach (var file in cacheDirectory.EnumerateFiles().Where(file => file.Name.StartsWith(pdbData.Path)))
             {

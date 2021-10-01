@@ -20,7 +20,7 @@ namespace Lunar.FileResolution
             _rootDirectoryPath = rootDirectoryPath;
         }
 
-        internal string? ResolveFilePath(ActivationContext activationContext, string fileName)
+        internal string? ResolveFilePath(string fileName, ActivationContext activationContext)
         {
             // Check for .local redirection
 

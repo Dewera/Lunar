@@ -3,7 +3,7 @@
 namespace Lunar
 {
     /// <summary>
-    /// Defines actions that the mapper should take during the mapping process
+    /// Defines actions that the mapper should perform during the mapping process
     /// </summary>
     [Flags]
     public enum MappingFlags

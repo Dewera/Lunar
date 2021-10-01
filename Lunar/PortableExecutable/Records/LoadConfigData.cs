@@ -2,5 +2,5 @@
 
 namespace Lunar.PortableExecutable.Records
 {
-    internal sealed record LoadConfigData(ExceptionTable? ExceptionTable, GuardFlags GuardFlags, SecurityCookie? SecurityCookie);
+    internal sealed record LoadConfigData(ExceptionData? ExceptionTable, GuardFlags GuardFlags, SecurityCookie? SecurityCookie);
 }

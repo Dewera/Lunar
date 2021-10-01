@@ -21,7 +21,7 @@ namespace Lunar.Shellcode
                     {
                         // push argument
 
-                        shellcode.AddRange(new byte[] {0x6A, unchecked((byte) argument)});
+                        shellcode.AddRange(new byte[] { 0x6A, unchecked((byte) argument) });
 
                         break;
                     }
@@ -45,7 +45,7 @@ namespace Lunar.Shellcode
 
             // call eax
 
-            shellcode.AddRange(new byte[] {0xFF, 0xD0});
+            shellcode.AddRange(new byte[] { 0xFF, 0xD0 });
 
             if (callDescriptor.ReturnAddress != IntPtr.Zero)
             {
@@ -57,7 +57,7 @@ namespace Lunar.Shellcode
 
             // xor eax, eax
 
-            shellcode.AddRange(new byte[] {0x31, 0xC0});
+            shellcode.AddRange(new byte[] { 0x31, 0xC0 });
 
             // ret
 
@@ -69,13 +69,12 @@ namespace Lunar.Shellcode
         internal static Span<byte> AssembleCall64(CallDescriptor<long> callDescriptor)
         {
             var shellcode = new List<byte>();
-
             var shadowSpaceSize = Constants.ShadowSpaceSize + sizeof(long) * Math.Max(0, callDescriptor.Arguments.Count - 4);
-
+            
             // sub rsp, shadowSpaceSize
 
-            shellcode.AddRange(new byte[] {0x48, 0x83, 0xEC, (byte) shadowSpaceSize});
-
+            shellcode.AddRange(new byte[] { 0x48, 0x83, 0xEC, (byte) shadowSpaceSize });
+            
             if (callDescriptor.Arguments.Count > 0)
             {
                 var argument = callDescriptor.Arguments[0];
@@ -86,7 +85,7 @@ namespace Lunar.Shellcode
                     {
                         // xor ecx, ecx
 
-                        shellcode.AddRange(new byte[] {0x31, 0xC9});
+                        shellcode.AddRange(new byte[] { 0x31, 0xC9 });
 
                         break;
                     }
@@ -105,14 +104,14 @@ namespace Lunar.Shellcode
                     {
                         // mov rcx, argument
 
-                        shellcode.AddRange(new byte[] {0x48, 0xB9});
+                        shellcode.AddRange(new byte[] { 0x48, 0xB9 });
                         shellcode.AddRange(BitConverter.GetBytes(argument));
 
                         break;
                     }
                 }
             }
-
+            
             if (callDescriptor.Arguments.Count > 1)
             {
                 var argument = callDescriptor.Arguments[1];
@@ -123,7 +122,7 @@ namespace Lunar.Shellcode
                     {
                         // xor edx, edx
 
-                        shellcode.AddRange(new byte[] {0x31, 0xD2});
+                        shellcode.AddRange(new byte[] { 0x31, 0xD2 });
 
                         break;
                     }
@@ -142,14 +141,14 @@ namespace Lunar.Shellcode
                     {
                         // mov rdx, argument
 
-                        shellcode.AddRange(new byte[] {0x48, 0xBA});
+                        shellcode.AddRange(new byte[] { 0x48, 0xBA });
                         shellcode.AddRange(BitConverter.GetBytes(argument));
 
                         break;
                     }
                 }
             }
-
+            
             if (callDescriptor.Arguments.Count > 2)
             {
                 var argument = callDescriptor.Arguments[2];
@@ -160,7 +159,7 @@ namespace Lunar.Shellcode
                     {
                         // xor r8, r8
 
-                        shellcode.AddRange(new byte[] {0x4D, 0x31, 0xC0});
+                        shellcode.AddRange(new byte[] { 0x4D, 0x31, 0xC0 });
 
                         break;
                     }
@@ -169,7 +168,7 @@ namespace Lunar.Shellcode
                     {
                         // mov r8d, argument
 
-                        shellcode.AddRange(new byte[] {0x41, 0xB8});
+                        shellcode.AddRange(new byte[] { 0x41, 0xB8 });
                         shellcode.AddRange(BitConverter.GetBytes((int) argument));
 
                         break;
@@ -179,14 +178,14 @@ namespace Lunar.Shellcode
                     {
                         // mov r8, argument
 
-                        shellcode.AddRange(new byte[] {0x49, 0xB8});
+                        shellcode.AddRange(new byte[] { 0x49, 0xB8 });
                         shellcode.AddRange(BitConverter.GetBytes(argument));
-
+                        
                         break;
                     }
                 }
             }
-
+            
             if (callDescriptor.Arguments.Count > 3)
             {
                 var argument = callDescriptor.Arguments[3];
@@ -197,7 +196,7 @@ namespace Lunar.Shellcode
                     {
                         // xor r9, r9
 
-                        shellcode.AddRange(new byte[] {0x4D, 0x31, 0xC9});
+                        shellcode.AddRange(new byte[] { 0x4D, 0x31, 0xC9 });
 
                         break;
                     }
@@ -206,7 +205,7 @@ namespace Lunar.Shellcode
                     {
                         // mov r9d, argument
 
-                        shellcode.AddRange(new byte[] {0x41, 0xB9});
+                        shellcode.AddRange(new byte[] { 0x41, 0xB9 });
                         shellcode.AddRange(BitConverter.GetBytes((int) argument));
 
                         break;
@@ -216,14 +215,14 @@ namespace Lunar.Shellcode
                     {
                         // mov r9, argument
 
-                        shellcode.AddRange(new byte[] {0x49, 0xB9});
+                        shellcode.AddRange(new byte[] { 0x49, 0xB9 });
                         shellcode.AddRange(BitConverter.GetBytes(argument));
 
                         break;
                     }
                 }
             }
-
+            
             if (callDescriptor.Arguments.Count > 4)
             {
                 foreach (var argument in callDescriptor.Arguments.Skip(4).Reverse())
@@ -234,7 +233,7 @@ namespace Lunar.Shellcode
                         {
                             // push argument
 
-                            shellcode.AddRange(new byte[] {0x6A, unchecked((byte) argument)});
+                            shellcode.AddRange(new byte[] { 0x6A, unchecked((byte) argument) });
 
                             break;
                         }
@@ -253,7 +252,7 @@ namespace Lunar.Shellcode
                         {
                             // mov rax, argument
 
-                            shellcode.AddRange(new byte[] {0x48, 0xB8});
+                            shellcode.AddRange(new byte[] { 0x48, 0xB8 });
                             shellcode.AddRange(BitConverter.GetBytes(argument));
 
                             // push rax
@@ -265,36 +264,36 @@ namespace Lunar.Shellcode
                     }
                 }
             }
-
+            
             // mov rax, Address
 
-            shellcode.AddRange(new byte[] {0x48, 0xB8});
+            shellcode.AddRange(new byte[] { 0x48, 0xB8 });
             shellcode.AddRange(BitConverter.GetBytes(callDescriptor.Address.ToInt64()));
 
             // call rax
 
-            shellcode.AddRange(new byte[] {0xFF, 0xD0});
+            shellcode.AddRange(new byte[] { 0xFF, 0xD0 });
 
             if (callDescriptor.ReturnAddress != IntPtr.Zero)
             {
                 // mov [ReturnAddress], rax
 
-                shellcode.AddRange(new byte[] {0x48, 0xA3});
+                shellcode.AddRange(new byte[] { 0x48, 0xA3 });
                 shellcode.AddRange(BitConverter.GetBytes(callDescriptor.ReturnAddress.ToInt64()));
             }
-
+            
             // xor eax, eax
 
-            shellcode.AddRange(new byte[] {0x31, 0xC0});
+            shellcode.AddRange(new byte[] { 0x31, 0xC0 });
 
             // add rsp, shadowSpaceSize
 
-            shellcode.AddRange(new byte[] {0x48, 0x83, 0xC4, (byte) shadowSpaceSize});
+            shellcode.AddRange(new byte[] { 0x48, 0x83, 0xC4, (byte) shadowSpaceSize });
 
             // ret
 
             shellcode.Add(0xC3);
-
+            
             return CollectionsMarshal.AsSpan(shellcode);
         }
     }
