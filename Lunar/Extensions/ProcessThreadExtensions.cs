@@ -20,7 +20,6 @@ namespace Lunar.Extensions
             }
 
             Span<byte> informationBytes = stackalloc byte[Unsafe.SizeOf<T>()];
-
             var status = Ntdll.NtQueryInformationThread(threadHandle, informationType, out informationBytes[0], informationBytes.Length, IntPtr.Zero);
 
             if (status != NtStatus.Success)

@@ -28,7 +28,7 @@ namespace Lunar.Native.PInvoke
 
         [DllImport("kernel32.dll", SetLastError = true)]
         internal static extern SafeThreadHandle OpenThread(AccessMask accessMask, bool inheritHandle, int threadId);
-        
+
         [DllImport("kernel32.dll", SetLastError = true)]
         internal static extern bool ReadProcessMemory(SafeProcessHandle processHandle, IntPtr address, out byte bytes, nint size, IntPtr bytesReadCount);
 

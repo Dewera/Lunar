@@ -171,15 +171,15 @@ namespace Lunar.Remote
             else
             {
                 // Read the process PEB
-            
+
                 var basicInformation = Process.QueryInformation<ProcessBasicInformation64>(ProcessInformationType.BasicInformation);
                 var pebAddress = UnsafeHelpers.WrapPointer(basicInformation.PebBaseAddress);
                 var peb = Process.ReadStruct<Peb64>(pebAddress);
-                
+
                 return UnsafeHelpers.WrapPointer(peb.ProcessHeap);
             }
         }
-        
+
         internal IntPtr GetModuleAddress(string moduleName)
         {
             return GetModule(moduleName).Address;
@@ -187,12 +187,20 @@ namespace Lunar.Remote
 
         internal IntPtr GetNtdllSymbolAddress(string symbolName)
         {
-            return GetModule("ntdll.dll").Address + _symbolHandler.GetSymbol(symbolName).RelativeAddress;
+            return GetModule("ntdll.dll").Address + _symbolHandler.GetSymbolOffset(symbolName);
         }
 
         internal void NotifyModuleLoad(IntPtr moduleAddress, string moduleFilePath)
         {
             _moduleCache.TryAdd(Path.GetFileName(moduleFilePath), new Module(moduleAddress, new PeImage(File.ReadAllBytes(moduleFilePath))));
+        }
+
+        internal void PrefetchNtdllSymbols(IEnumerable<string> symbolNames)
+        {
+            foreach (var symbolName in symbolNames)
+            {
+                _symbolHandler.GetSymbolOffset(symbolName);
+            }
         }
 
         internal string ResolveModuleName(string moduleName)

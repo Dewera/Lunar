@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
@@ -11,21 +12,27 @@ using Lunar.Native;
 using Lunar.Native.Enums;
 using Lunar.Native.PInvoke;
 using Lunar.Native.Structs;
-using Lunar.Remote.Records;
 
 namespace Lunar.Remote
 {
     internal sealed class SymbolHandler
     {
         private readonly string _pdbFilePath;
+        private readonly IDictionary<string, int> _symbolCache;
 
         internal SymbolHandler(Architecture architecture)
         {
             _pdbFilePath = FindOrDownloadSymbolFileAsync(architecture).GetAwaiter().GetResult();
+            _symbolCache = new Dictionary<string, int>();
         }
 
-        internal Symbol GetSymbol(string symbolName)
+        internal int GetSymbolOffset(string symbolName)
         {
+            if (_symbolCache.TryGetValue(symbolName, out var symbolOffset))
+            {
+                return symbolOffset;
+            }
+
             // Initialise a native symbol handler
 
             Dbghelp.SymSetOptions(SymbolOptions.UndecorateName);
@@ -64,8 +71,10 @@ namespace Lunar.Remote
                     }
 
                     var symbolInformation = MemoryMarshal.Read<SymbolInfo>(symbolInformationBytes);
+                    symbolOffset = (int)(symbolInformation.Address - pseudoDllAddress);
+                    _symbolCache.Add(symbolName, symbolOffset);
 
-                    return new Symbol((int) (symbolInformation.Address - pseudoDllAddress));
+                    return symbolOffset;
                 }
 
                 finally

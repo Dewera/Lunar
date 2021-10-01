@@ -62,6 +62,10 @@ namespace Lunar
             _mappingFlags = mappingFlags;
             _peImage = new PeImage(dllBytes);
             _processContext = new ProcessContext(process);
+
+            // Prefetch symbols to avoid accidental deadlocks if mapping into the local process
+
+            _processContext.PrefetchNtdllSymbols(new[] { "LdrpActualBitmapSize", "LdrpDelayedTlsReclaimTable", "LdrpInvertedFunctionTable", "LdrpInvertedFunctionTable", "LdrpTlsBitmap", "LdrpTlsBitmap" });
         }
 
         /// <summary>
@@ -89,6 +93,10 @@ namespace Lunar
             _mappingFlags = mappingFlags;
             _peImage = new PeImage(File.ReadAllBytes(dllFilePath));
             _processContext = new ProcessContext(process);
+
+            // Prefetch symbols to avoid accidental deadlocks if mapping into the local process
+
+            _processContext.PrefetchNtdllSymbols(new[] { "LdrpActualBitmapSize", "LdrpDelayedTlsReclaimTable", "LdrpInvertedFunctionTable", "LdrpInvertedFunctionTable", "LdrpTlsBitmap", "LdrpTlsBitmap" });
         }
 
         /// <summary>
