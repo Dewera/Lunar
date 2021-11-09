@@ -24,6 +24,7 @@ namespace Lunar.Remote
 {
     internal sealed class ProcessContext
     {
+        internal Architecture Architecture { get; }
         internal Process Process { get; }
 
         private readonly ApiSetMap _apiSetMap;
@@ -36,6 +37,7 @@ namespace Lunar.Remote
             _moduleCache = new ConcurrentDictionary<string, Module>(StringComparer.OrdinalIgnoreCase);
             _symbolHandler = new SymbolHandler(process.GetArchitecture());
 
+            Architecture = process.GetArchitecture();
             Process = process;
         }
 
@@ -45,7 +47,7 @@ namespace Lunar.Remote
 
             Span<byte> shellcodeBytes;
 
-            if (Process.GetArchitecture() == Architecture.X86)
+            if (Architecture == Architecture.X86)
             {
                 var callDescriptor = new CallDescriptor<int>(routineAddress, Array.ConvertAll(arguments, argument => (int) argument), IntPtr.Zero);
                 shellcodeBytes = Assembler.AssembleCall32(callDescriptor);
@@ -57,28 +59,13 @@ namespace Lunar.Remote
                 shellcodeBytes = Assembler.AssembleCall64(callDescriptor);
             }
 
-            // Write the shellcode into the process
-
-            var shellcodeAddress = Process.AllocateBuffer(shellcodeBytes.Length, ProtectionType.ExecuteRead);
-
-            try
-            {
-                Process.WriteSpan(shellcodeAddress, shellcodeBytes);
-
-                // Create a thread to execute the shellcode
-
-                Process.CreateThread(shellcodeAddress);
-            }
-
-            finally
-            {
-                Executor.IgnoreExceptions(() => Process.FreeBuffer(shellcodeAddress));
-            }
+            ExecuteShellcode(shellcodeBytes);
         }
 
         internal T CallRoutine<T>(IntPtr routineAddress, params dynamic[] arguments) where T : unmanaged
         {
-            var returnAddress = Process.AllocateBuffer(Unsafe.SizeOf<T>(), ProtectionType.ReadWrite);
+            var returnSize = typeof(T) == typeof(IntPtr) ? Architecture == Architecture.X86 ? sizeof(int) : sizeof(long) : Unsafe.SizeOf<T>();
+            var returnAddress = Process.AllocateBuffer(returnSize, ProtectionType.ReadWrite);
 
             try
             {
@@ -86,7 +73,7 @@ namespace Lunar.Remote
 
                 Span<byte> shellcodeBytes;
 
-                if (Process.GetArchitecture() == Architecture.X86)
+                if (Architecture == Architecture.X86)
                 {
                     var callDescriptor = new CallDescriptor<int>(routineAddress, Array.ConvertAll(arguments, argument => (int) argument), returnAddress);
                     shellcodeBytes = Assembler.AssembleCall32(callDescriptor);
@@ -98,25 +85,18 @@ namespace Lunar.Remote
                     shellcodeBytes = Assembler.AssembleCall64(callDescriptor);
                 }
 
-                // Write the shellcode into the process
+                ExecuteShellcode(shellcodeBytes);
 
-                var shellcodeAddress = Process.AllocateBuffer(shellcodeBytes.Length, ProtectionType.ExecuteRead);
+                // Read the return value
 
-                try
+                if (typeof(T) != typeof(IntPtr))
                 {
-                    Process.WriteSpan(shellcodeAddress, shellcodeBytes);
-
-                    // Create a thread to execute the shellcode
-
-                    Process.CreateThread(shellcodeAddress);
+                    return Process.ReadStruct<T>(returnAddress);
                 }
 
-                finally
-                {
-                    Executor.IgnoreExceptions(() => Process.FreeBuffer(shellcodeAddress));
-                }
+                var pointer = Architecture == Architecture.X86 ? UnsafeHelpers.WrapPointer(Process.ReadStruct<int>(returnAddress)) : UnsafeHelpers.WrapPointer(Process.ReadStruct<long>(returnAddress));
 
-                return Process.ReadStruct<T>(returnAddress);
+                return Unsafe.As<IntPtr, T>(ref pointer);
             }
 
             finally
@@ -158,7 +138,7 @@ namespace Lunar.Remote
 
         internal IntPtr GetHeapAddress()
         {
-            if (Process.GetArchitecture() == Architecture.X86)
+            if (Architecture == Architecture.X86)
             {
                 // Read the process WOW64 PEB
 
@@ -187,20 +167,12 @@ namespace Lunar.Remote
 
         internal IntPtr GetNtdllSymbolAddress(string symbolName)
         {
-            return GetModule("ntdll.dll").Address + _symbolHandler.GetSymbolOffset(symbolName);
+            return GetModule("ntdll.dll").Address + _symbolHandler.GetSymbol(symbolName).RelativeAddress;
         }
 
         internal void NotifyModuleLoad(IntPtr moduleAddress, string moduleFilePath)
         {
             _moduleCache.TryAdd(Path.GetFileName(moduleFilePath), new Module(moduleAddress, new PeImage(File.ReadAllBytes(moduleFilePath))));
-        }
-
-        internal void PrefetchNtdllSymbols(IEnumerable<string> symbolNames)
-        {
-            foreach (var symbolName in symbolNames)
-            {
-                _symbolHandler.GetSymbolOffset(symbolName);
-            }
         }
 
         internal string ResolveModuleName(string moduleName)
@@ -211,6 +183,27 @@ namespace Lunar.Remote
             }
 
             return moduleName;
+        }
+
+        private void ExecuteShellcode(Span<byte> shellcodeBytes)
+        {
+            // Write the shellcode into the process
+
+            var shellcodeAddress = Process.AllocateBuffer(shellcodeBytes.Length, ProtectionType.ExecuteRead);
+
+            try
+            {
+                Process.WriteSpan(shellcodeAddress, shellcodeBytes);
+
+                // Create a thread to execute the shellcode
+
+                Process.CreateThread(shellcodeAddress);
+            }
+
+            finally
+            {
+                Executor.IgnoreExceptions(() => Process.FreeBuffer(shellcodeAddress));
+            }
         }
 
         private Module GetModule(string moduleName)
@@ -225,7 +218,7 @@ namespace Lunar.Remote
             // Query the process for a list of its module addresses
 
             Span<byte> moduleAddressListBytes = stackalloc byte[IntPtr.Size];
-            var moduleType = Process.GetArchitecture() == Architecture.X86 ? ModuleType.X86 : ModuleType.X64;
+            var moduleType = Architecture == Architecture.X86 ? ModuleType.X86 : ModuleType.X64;
 
             if (!Kernel32.K32EnumProcessModulesEx(Process.SafeHandle, out moduleAddressListBytes[0], moduleAddressListBytes.Length, out var sizeNeeded, moduleType))
             {
@@ -261,7 +254,7 @@ namespace Lunar.Remote
 
                 var moduleFilePath = Encoding.Unicode.GetString(moduleFilePathBytes).TrimEnd('\0');
 
-                if (Environment.Is64BitOperatingSystem && Process.GetArchitecture() == Architecture.X86)
+                if (Architecture == Architecture.X86)
                 {
                     // Redirect the file path to the WOW64 directory
 

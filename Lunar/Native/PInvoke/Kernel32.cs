@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 using Lunar.Native.Enums;
-using Lunar.Native.SafeHandles;
 using Microsoft.Win32.SafeHandles;
 
 namespace Lunar.Native.PInvoke
@@ -15,9 +14,6 @@ namespace Lunar.Native.PInvoke
         internal static extern SafeProcessHandle GetCurrentProcess();
 
         [DllImport("kernel32.dll", SetLastError = true)]
-        internal static extern bool GetExitCodeThread(SafeThreadHandle threadHandle, out ThreadExitCode exitCode);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
         internal static extern bool IsWow64Process(SafeProcessHandle processHandle, out bool isWow64Process);
 
         [DllImport("kernel32.dll", SetLastError = true)]
@@ -25,9 +21,6 @@ namespace Lunar.Native.PInvoke
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         internal static extern bool K32GetModuleFileNameEx(SafeProcessHandle processHandle, IntPtr address, out byte bytes, int size);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        internal static extern SafeThreadHandle OpenThread(AccessMask accessMask, bool inheritHandle, int threadId);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         internal static extern bool ReadProcessMemory(SafeProcessHandle processHandle, IntPtr address, out byte bytes, nint size, IntPtr bytesReadCount);

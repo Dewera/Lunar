@@ -10,7 +10,7 @@ namespace Lunar.Native.Structs
         [FieldOffset(0x8)]
         private readonly ImageTlsDirectory32 TlsDirectory;
         [FieldOffset(0x24)]
-        internal readonly int Index;
+        private readonly int Index;
 
         internal LdrpTlsEntry32(ListEntry32 entryLinks, ImageTlsDirectory32 tlsDirectory, int index)
         {
@@ -28,7 +28,7 @@ namespace Lunar.Native.Structs
         [FieldOffset(0x10)]
         private readonly ImageTlsDirectory64 TlsDirectory;
         [FieldOffset(0x40)]
-        internal readonly int Index;
+        private readonly int Index;
 
         internal LdrpTlsEntry64(ListEntry64 entryLinks, ImageTlsDirectory64 tlsDirectory, int index)
         {

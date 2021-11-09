@@ -63,7 +63,7 @@ public LibraryMapper(Process, string, MappingFlags);
 
 ### Properties
 
-The base address of the DLL in the process after it has been mapped
+The base address of the DLL in the process
 
 ```c#
 public IntPtr DllBaseAddress { get; }
