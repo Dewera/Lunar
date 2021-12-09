@@ -1,21 +1,20 @@
 ﻿using System;
 using Lunar.Utilities;
 
-namespace Lunar.Remote
+namespace Lunar.Remote;
+
+internal sealed class SafePebLock : IDisposable
 {
-    internal sealed class SafePebLock : IDisposable
+    private readonly ProcessContext _processContext;
+
+    internal SafePebLock(ProcessContext processContext)
     {
-        private readonly ProcessContext _processContext;
+        _processContext = processContext;
+        processContext.CallRoutine(processContext.GetFunctionAddress("ntdll.dll", "RtlAcquirePebLock"));
+    }
 
-        internal SafePebLock(ProcessContext processContext)
-        {
-            _processContext = processContext;
-            processContext.CallRoutine(processContext.GetFunctionAddress("ntdll.dll", "RtlAcquirePebLock"));
-        }
-
-        public void Dispose()
-        {
-            Executor.IgnoreExceptions(() => _processContext.CallRoutine(_processContext.GetFunctionAddress("ntdll.dll", "RtlReleasePebLock")));
-        }
+    public void Dispose()
+    {
+        Executor.IgnoreExceptions(() => _processContext.CallRoutine(_processContext.GetFunctionAddress("ntdll.dll", "RtlReleasePebLock")));
     }
 }

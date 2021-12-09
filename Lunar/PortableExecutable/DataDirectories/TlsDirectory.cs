@@ -5,71 +5,70 @@ using System.Runtime.InteropServices;
 using Lunar.Native.Structs;
 using Lunar.PortableExecutable.Records;
 
-namespace Lunar.PortableExecutable.DataDirectories
-{
-    internal sealed class TlsDirectory : DataDirectoryBase
-    {
-        internal TlsDirectory(PEHeaders headers, Memory<byte> imageBytes) : base(headers.PEHeader!.ThreadLocalStorageTableDirectory, headers, imageBytes) { }
+namespace Lunar.PortableExecutable.DataDirectories;
 
-        internal IEnumerable<TlsCallback> GetTlsCallbacks()
+internal sealed class TlsDirectory : DataDirectoryBase
+{
+    internal TlsDirectory(PEHeaders headers, Memory<byte> imageBytes) : base(headers.PEHeader!.ThreadLocalStorageTableDirectory, headers, imageBytes) { }
+
+    internal IEnumerable<TlsCallback> GetTlsCallbacks()
+    {
+        if (!IsValid)
         {
-            if (!IsValid)
+            yield break;
+        }
+
+        if (Headers.PEHeader!.Magic == PEMagic.PE32)
+        {
+            // Read the TLS directory
+
+            var tlsDirectory = MemoryMarshal.Read<ImageTlsDirectory32>(ImageBytes.Span[DirectoryOffset..]);
+
+            if (tlsDirectory.AddressOfCallBacks == 0)
             {
                 yield break;
             }
 
-            if (Headers.PEHeader!.Magic == PEMagic.PE32)
+            for (var callbackIndex = 0;; callbackIndex += 1)
             {
-                // Read the TLS directory
+                // Read the callback address
 
-                var tlsDirectory = MemoryMarshal.Read<ImageTlsDirectory32>(ImageBytes.Span[DirectoryOffset..]);
+                var callbackAddressOffset = RvaToOffset(VaToRva(tlsDirectory.AddressOfCallBacks)) + sizeof(int) * callbackIndex;
+                var callbackAddress = MemoryMarshal.Read<int>(ImageBytes.Span[callbackAddressOffset..]);
 
-                if (tlsDirectory.AddressOfCallBacks == 0)
+                if (callbackAddress == 0)
                 {
-                    yield break;
+                    break;
                 }
 
-                for (var callbackIndex = 0;; callbackIndex += 1)
-                {
-                    // Read the callback address
+                yield return new TlsCallback(VaToRva(callbackAddress));
+            }
+        }
 
-                    var callbackAddressOffset = RvaToOffset(VaToRva(tlsDirectory.AddressOfCallBacks)) + sizeof(int) * callbackIndex;
-                    var callbackAddress = MemoryMarshal.Read<int>(ImageBytes.Span[callbackAddressOffset..]);
+        else
+        {
+            // Read the TLS directory
 
-                    if (callbackAddress == 0)
-                    {
-                        break;
-                    }
+            var tlsDirectory = MemoryMarshal.Read<ImageTlsDirectory64>(ImageBytes.Span[DirectoryOffset..]);
 
-                    yield return new TlsCallback(VaToRva(callbackAddress));
-                }
+            if (tlsDirectory.AddressOfCallBacks == 0)
+            {
+                yield break;
             }
 
-            else
+            for (var callbackIndex = 0;; callbackIndex += 1)
             {
-                // Read the TLS directory
+                // Read the callback address
 
-                var tlsDirectory = MemoryMarshal.Read<ImageTlsDirectory64>(ImageBytes.Span[DirectoryOffset..]);
+                var callbackAddressOffset = RvaToOffset(VaToRva(tlsDirectory.AddressOfCallBacks)) + sizeof(long) * callbackIndex;
+                var callbackAddress = MemoryMarshal.Read<long>(ImageBytes.Span[callbackAddressOffset..]);
 
-                if (tlsDirectory.AddressOfCallBacks == 0)
+                if (callbackAddress == 0)
                 {
-                    yield break;
+                    break;
                 }
 
-                for (var callbackIndex = 0;; callbackIndex += 1)
-                {
-                    // Read the callback address
-
-                    var callbackAddressOffset = RvaToOffset(VaToRva(tlsDirectory.AddressOfCallBacks)) + sizeof(long) * callbackIndex;
-                    var callbackAddress = MemoryMarshal.Read<long>(ImageBytes.Span[callbackAddressOffset..]);
-
-                    if (callbackAddress == 0)
-                    {
-                        break;
-                    }
-
-                    yield return new TlsCallback(VaToRva(callbackAddress));
-                }
+                yield return new TlsCallback(VaToRva(callbackAddress));
             }
         }
     }

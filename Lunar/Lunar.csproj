@@ -1,13 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net5.0</TargetFramework>
+        <TargetFramework>net6.0</TargetFramework>
         <Nullable>enable</Nullable>
         <PackageVersion>1.6.2</PackageVersion>
         <Authors>Dewera</Authors>
         <Description>A lightweight native DLL mapping library that supports mapping directly from memory</Description>
         <RepositoryUrl>https://github.com/Dewera/Lunar</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
+        <LangVersion>10</LangVersion>
     </PropertyGroup>
 
     <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">

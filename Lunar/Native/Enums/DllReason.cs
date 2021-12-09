@@ -1,8 +1,7 @@
-namespace Lunar.Native.Enums
+namespace Lunar.Native.Enums;
+
+internal enum DllReason
 {
-    internal enum DllReason
-    {
-        ProcessDetach = 0x0,
-        ProcessAttach = 0x1
-    }
+    ProcessDetach = 0x0,
+    ProcessAttach = 0x1
 }

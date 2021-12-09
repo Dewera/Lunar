@@ -7,55 +7,54 @@ using Lunar.Native.Enums;
 using Lunar.Native.Structs;
 using Lunar.PortableExecutable.Records;
 
-namespace Lunar.PortableExecutable.DataDirectories
+namespace Lunar.PortableExecutable.DataDirectories;
+
+internal sealed class RelocationDirectory : DataDirectoryBase
 {
-    internal sealed class RelocationDirectory : DataDirectoryBase
+    internal RelocationDirectory(PEHeaders headers, Memory<byte> imageBytes) : base(headers.PEHeader!.BaseRelocationTableDirectory, headers, imageBytes) { }
+
+    internal IEnumerable<Relocation> GetRelocations()
     {
-        internal RelocationDirectory(PEHeaders headers, Memory<byte> imageBytes) : base(headers.PEHeader!.BaseRelocationTableDirectory, headers, imageBytes) { }
-
-        internal IEnumerable<Relocation> GetRelocations()
+        if (!IsValid)
         {
-            if (!IsValid)
+            yield break;
+        }
+
+        var currentRelocationBlockOffset = DirectoryOffset;
+        var maxOffset = DirectoryOffset + Headers.PEHeader!.BaseRelocationTableDirectory.Size;
+
+        while (currentRelocationBlockOffset < maxOffset)
+        {
+            // Read the relocation block
+
+            var relocationBlock = MemoryMarshal.Read<ImageBaseRelocation>(ImageBytes.Span[currentRelocationBlockOffset..]);
+
+            if (relocationBlock.SizeOfBlock == 0)
             {
-                yield break;
+                break;
             }
 
-            var currentRelocationBlockOffset = DirectoryOffset;
-            var maxOffset = DirectoryOffset + Headers.PEHeader!.BaseRelocationTableDirectory.Size;
+            var relocationCount = (relocationBlock.SizeOfBlock - Unsafe.SizeOf<ImageBaseRelocation>()) / sizeof(short);
 
-            while (currentRelocationBlockOffset < maxOffset)
+            for (var relocationIndex = 0; relocationIndex < relocationCount; relocationIndex += 1)
             {
-                // Read the relocation block
+                // Read the relocation
 
-                var relocationBlock = MemoryMarshal.Read<ImageBaseRelocation>(ImageBytes.Span[currentRelocationBlockOffset..]);
+                var relocationOffset = currentRelocationBlockOffset + Unsafe.SizeOf<ImageBaseRelocation>() + sizeof(short) * relocationIndex;
+                var relocation = MemoryMarshal.Read<short>(ImageBytes.Span[relocationOffset..]);
 
-                if (relocationBlock.SizeOfBlock == 0)
-                {
-                    break;
-                }
+                // The type is located in the upper 4 bits of the relocation
 
-                var relocationCount = (relocationBlock.SizeOfBlock - Unsafe.SizeOf<ImageBaseRelocation>()) / sizeof(short);
+                var type = (ushort) relocation >> 12;
 
-                for (var relocationIndex = 0; relocationIndex < relocationCount; relocationIndex += 1)
-                {
-                    // Read the relocation
+                // The offset is located in the lower 12 bits of the relocation
 
-                    var relocationOffset = currentRelocationBlockOffset + Unsafe.SizeOf<ImageBaseRelocation>() + sizeof(short) * relocationIndex;
-                    var relocation = MemoryMarshal.Read<short>(ImageBytes.Span[relocationOffset..]);
+                var offset = relocation & 0xFFF;
 
-                    // The type is located in the upper 4 bits of the relocation
-
-                    var type = (ushort) relocation >> 12;
-
-                    // The offset is located in the lower 12 bits of the relocation
-
-                    var offset = relocation & 0xFFF;
-
-                    yield return new Relocation(RvaToOffset(relocationBlock.VirtualAddress) + offset, (RelocationType) type);
-                }
-
-                currentRelocationBlockOffset += relocationBlock.SizeOfBlock;
+                yield return new Relocation(RvaToOffset(relocationBlock.VirtualAddress) + offset, (RelocationType) type);
             }
+
+            currentRelocationBlockOffset += relocationBlock.SizeOfBlock;
         }
     }
 }

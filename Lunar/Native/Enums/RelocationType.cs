@@ -1,8 +1,7 @@
-﻿namespace Lunar.Native.Enums
+﻿namespace Lunar.Native.Enums;
+
+internal enum RelocationType
 {
-    internal enum RelocationType
-    {
-        HighLow = 0x3,
-        Dir64 = 0xA
-    }
+    HighLow = 0x3,
+    Dir64 = 0xA
 }

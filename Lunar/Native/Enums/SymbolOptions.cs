@@ -1,10 +1,9 @@
 ﻿using System;
 
-namespace Lunar.Native.Enums
+namespace Lunar.Native.Enums;
+
+[Flags]
+internal enum SymbolOptions
 {
-    [Flags]
-    internal enum SymbolOptions
-    {
-        UndecorateName = 0x2
-    }
+    UndecorateName = 0x2
 }

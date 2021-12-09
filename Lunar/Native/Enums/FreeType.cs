@@ -1,7 +1,6 @@
-﻿namespace Lunar.Native.Enums
+﻿namespace Lunar.Native.Enums;
+
+internal enum FreeType
 {
-    internal enum FreeType
-    {
-        Release = 0x8000
-    }
+    Release = 0x8000
 }

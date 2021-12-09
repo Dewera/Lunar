@@ -1,7 +1,6 @@
-﻿namespace Lunar.Native.Enums
+﻿namespace Lunar.Native.Enums;
+
+internal enum HeapAllocationType
 {
-    internal enum HeapAllocationType
-    {
-        ZeroMemory = 0x8
-    }
+    ZeroMemory = 0x8
 }

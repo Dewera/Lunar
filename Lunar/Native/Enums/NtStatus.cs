@@ -1,7 +1,6 @@
-﻿namespace Lunar.Native.Enums
+﻿namespace Lunar.Native.Enums;
+
+internal enum NtStatus
 {
-    internal enum NtStatus
-    {
-        Success = 0x0
-    }
+    Success = 0x0
 }

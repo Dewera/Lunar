@@ -14,7 +14,7 @@ A lightweight native DLL mapping library that supports mapping directly from mem
 - Static TLS initialisation
 - SxS dependency resolution
 - TLS callback execution
-- x86 and x64 support
+- WOW64 and x64 support
 
 ---
 
