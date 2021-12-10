@@ -25,27 +25,3 @@ jobs:
         
       - name: Run Tests
         run: dotnet test
-
-  deploy:
-    runs-on: [windows-latest]
-    needs: [build]
-    if: github.event_name == 'push'
-    
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-dotnet@v1
-        with:
-          dotnet-version: '6.0'
-      
-      - name: Create Package
-        run: dotnet pack Lunar --configuration Release
-      
-      - uses: actions/setup-dotnet@v1
-        with:
-          dotnet-version: '6.0'
-          source-url: https://nuget.pkg.github.com/${{github.actor}}
-        env:
-          NUGET_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
-
-      - name: Publish Package
-        run: dotnet nuget push 'Lunar\bin\Release\*.nupkg' --skip-duplicate
