@@ -23,24 +23,6 @@ internal static class ProcessExtensions
         return address;
     }
 
-    internal static void CreateThread(this Process process, IntPtr address)
-    {
-        var status = Ntdll.RtlCreateUserThread(process.SafeHandle, IntPtr.Zero, false, 0, 0, 0, address, IntPtr.Zero, out var threadHandle, IntPtr.Zero);
-
-        if (status != NtStatus.Success)
-        {
-            throw new Win32Exception(Ntdll.RtlNtStatusToDosError(status));
-        }
-
-        using (threadHandle)
-        {
-            if (Kernel32.WaitForSingleObject(threadHandle, int.MaxValue) == -1)
-            {
-                throw new Win32Exception();
-            }
-        }
-    }
-
     internal static void FreeBuffer(this Process process, IntPtr address)
     {
         if (!Kernel32.VirtualFreeEx(process.SafeHandle, address, 0, FreeType.Release))
@@ -51,11 +33,6 @@ internal static class ProcessExtensions
 
     internal static Architecture GetArchitecture(this Process process)
     {
-        if (!Environment.Is64BitOperatingSystem)
-        {
-            return Architecture.X86;
-        }
-
         if (!Kernel32.IsWow64Process(process.SafeHandle, out var isWow64Process))
         {
             throw new Win32Exception();

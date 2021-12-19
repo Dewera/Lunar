@@ -109,8 +109,9 @@ internal sealed class SymbolHandler
         // Check if the correct PDB version is already cached
 
         var pdbFilePath = Path.Combine(cacheDirectory.FullName, $"{pdbData.Path}-{pdbData.Guid:N}.pdb");
+        var pdbFile = new FileInfo(pdbFilePath);
 
-        if (File.Exists(pdbFilePath))
+        if (pdbFile.Exists && pdbFile.Length != 0)
         {
             return pdbFilePath;
         }
@@ -132,24 +133,42 @@ internal sealed class SymbolHandler
 
         // Download the PDB from the Microsoft symbol server
 
-        Console.WriteLine($"Downloading required files [{pdbData.Path}]");
-
         using var httpClient = new HttpClient();
-        using var response = await httpClient.GetAsync(new Uri($"https://msdl.microsoft.com/download/symbols/{pdbData.Path}/{pdbData.Guid:N}{pdbData.Age}/{pdbData.Path}"));
+        using var response = await httpClient.GetAsync(new Uri($"https://msdl.microsoft.com/download/symbols/{pdbData.Path}/{pdbData.Guid:N}{pdbData.Age}/{pdbData.Path}"), HttpCompletionOption.ResponseHeadersRead);
 
-        if (response.IsSuccessStatusCode)
+        if (!response.IsSuccessStatusCode)
         {
-            await using var contentStream = await response.Content.ReadAsStreamAsync();
-            await using var fileStream = new FileStream(pdbFilePath, FileMode.Create);
-            await contentStream.CopyToAsync(fileStream);
-
-            Console.WriteLine("Success");
+            throw new HttpRequestException($"Failed to download required files [{pdbData.Path}] with status code {response.StatusCode}");
         }
 
-        else
+        if (response.Content.Headers.ContentLength is null)
         {
-            Console.WriteLine($"Failed with status code {response.StatusCode}");
+            throw new HttpRequestException($"Failed to retrieve content headers for required files [{pdbData.Path}]");
         }
+
+        await using var contentStream = await response.Content.ReadAsStreamAsync();
+        await using var fileStream = new FileStream(pdbFilePath, FileMode.Create);
+
+        var copyBuffer = new byte[65536];
+        var bytesRead = 0d;
+
+        while (true)
+        {
+            var blockSize = await contentStream.ReadAsync(copyBuffer);
+            bytesRead += blockSize;
+
+            if (blockSize == 0)
+            {
+                break;
+            }
+
+            var progressPercentage = bytesRead / response.Content.Headers.ContentLength.Value * 100;
+            var progress = progressPercentage / 2;
+            Console.Write($"\rDownloading required files [{pdbData.Path}] - [{new string('=', (int) progress)}{new string(' ', 50 - (int) progress)}] - {(int) progressPercentage}%");
+
+            await fileStream.WriteAsync(new ReadOnlyMemory<byte>(copyBuffer, 0, blockSize));
+        }
+
         return pdbFilePath;
     }
 }

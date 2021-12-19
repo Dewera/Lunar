@@ -197,7 +197,20 @@ internal sealed class ProcessContext
 
             // Create a thread to execute the shellcode
 
-            Process.CreateThread(shellcodeAddress);
+            var status = Ntdll.RtlCreateUserThread(Process.SafeHandle, IntPtr.Zero, false, 0, 0, 0, shellcodeAddress, IntPtr.Zero, out var threadHandle, IntPtr.Zero);
+
+            if (status != NtStatus.Success)
+            {
+                throw new Win32Exception(Ntdll.RtlNtStatusToDosError(status));
+            }
+
+            using (threadHandle)
+            {
+                if (Kernel32.WaitForSingleObject(threadHandle, int.MaxValue) == -1)
+                {
+                    throw new Win32Exception();
+                }
+            }
         }
 
         finally

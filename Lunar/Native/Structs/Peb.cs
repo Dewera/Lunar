@@ -2,7 +2,7 @@
 
 namespace Lunar.Native.Structs;
 
-[StructLayout(LayoutKind.Explicit, Size = 1152)]
+[StructLayout(LayoutKind.Explicit, Size = 1160)]
 internal readonly struct Peb32
 {
     [FieldOffset(0x18)]
@@ -11,7 +11,7 @@ internal readonly struct Peb32
     internal readonly int ApiSetMap;
 }
 
-[StructLayout(LayoutKind.Explicit, Size = 1992)]
+[StructLayout(LayoutKind.Explicit, Size = 2000)]
 internal readonly struct Peb64
 {
     [FieldOffset(0x30)]
