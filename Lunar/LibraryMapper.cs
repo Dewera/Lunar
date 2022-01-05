@@ -1,14 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Linq;
+﻿using System.Diagnostics;
+using System.Numerics;
 using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading.Tasks;
 using Lunar.Extensions;
 using Lunar.FileResolution;
 using Lunar.Native;
@@ -310,12 +306,12 @@ public sealed class LibraryMapper
 
             var previousEntryAddress = UnsafeHelpers.WrapPointer(tlsEntry.EntryLinks.Blink);
             var previousEntry = _processContext.Process.ReadStruct<ListEntry32>(previousEntryAddress);
-            previousEntry = new ListEntry32(tlsEntry.EntryLinks.Flink, previousEntry.Blink);
+            previousEntry.Flink = tlsEntry.EntryLinks.Flink;
             _processContext.Process.WriteStruct(previousEntryAddress, previousEntry);
 
             var nextEntryAddress = UnsafeHelpers.WrapPointer(tlsEntry.EntryLinks.Flink);
             var nextEntry = _processContext.Process.ReadStruct<ListEntry32>(nextEntryAddress);
-            nextEntry = new ListEntry32(nextEntry.Flink, tlsEntry.EntryLinks.Blink);
+            nextEntry.Blink = tlsEntry.EntryLinks.Blink;
             _processContext.Process.WriteStruct(nextEntryAddress, nextEntry);
         }
 
@@ -329,12 +325,12 @@ public sealed class LibraryMapper
 
             var previousEntryAddress = UnsafeHelpers.WrapPointer(tlsEntry.EntryLinks.Blink);
             var previousEntry = _processContext.Process.ReadStruct<ListEntry64>(previousEntryAddress);
-            previousEntry = new ListEntry64(tlsEntry.EntryLinks.Flink, previousEntry.Blink);
+            previousEntry.Flink = tlsEntry.EntryLinks.Flink;
             _processContext.Process.WriteStruct(previousEntryAddress, previousEntry);
 
             var nextEntryAddress = UnsafeHelpers.WrapPointer(tlsEntry.EntryLinks.Flink);
             var nextEntry = _processContext.Process.ReadStruct<ListEntry64>(nextEntryAddress);
-            nextEntry = new ListEntry64(nextEntry.Flink, tlsEntry.EntryLinks.Blink);
+            nextEntry.Blink = tlsEntry.EntryLinks.Blink;
             _processContext.Process.WriteStruct(nextEntryAddress, nextEntry);
         }
 
@@ -597,110 +593,119 @@ public sealed class LibraryMapper
 
         var functionTable = _processContext.Process.ReadStruct<InvertedFunctionTable>(functionTableAddress);
 
-        if (functionTable.Overflow == 1)
+        if (functionTable.Overflow)
         {
             return;
         }
 
-        if (_peImage.Headers.PEHeader!.Magic == PEMagic.PE32)
+        if (functionTable.CurrentSize == functionTable.MaximumSize)
         {
-            var loadConfigData = _peImage.LoadConfigDirectory.GetLoadConfigData();
+            // Mark the function table as overflowed
 
-            if (loadConfigData is null)
-            {
-                return;
-            }
-
-            // Read the function table entry list
-
-            var functionTableEntryListAddress = functionTableAddress + Unsafe.SizeOf<InvertedFunctionTable>();
-            var functionTableEntryList = _processContext.Process.ReadSpan<InvertedFunctionTableEntry32>(functionTableEntryListAddress, Constants.InvertedFunctionTableSize);
-
-            // Find the index where the entry for the DLL should be inserted
-
-            var insertionIndex = 1;
-
-            while (insertionIndex < functionTable.Count)
-            {
-                if ((uint) DllBaseAddress.ToInt32() < (uint) functionTableEntryList[insertionIndex].ImageBase)
-                {
-                    break;
-                }
-
-                insertionIndex += 1;
-            }
-
-            if (insertionIndex < functionTable.Count)
-            {
-                // Shift the existing elements to make space for the entry for the DLL
-
-                for (var entryIndex = functionTable.Count - 1; entryIndex >= insertionIndex; entryIndex -= 1)
-                {
-                    functionTableEntryList[entryIndex + 1] = functionTableEntryList[entryIndex];
-                }
-            }
-
-            // Read the shared user data
-
-            var sharedUserDataAddress = UnsafeHelpers.WrapPointer(Constants.SharedUserDataAddress);
-            var sharedUserData = _processContext.Process.ReadStruct<KUserSharedData>(sharedUserDataAddress);
-
-            // Encode the address of the exception directory using the system pointer encoding algorithm
-
-            var exceptionDirectoryAddress = DllBaseAddress + loadConfigData.ExceptionTable!.RelativeAddress;
-            var xoredAddress = (uint) exceptionDirectoryAddress.ToInt32() ^ (uint) sharedUserData.Cookie;
-            var lowerCookieBits = sharedUserData.Cookie & 0x1F;
-            var rotatedAddress = (xoredAddress >> lowerCookieBits) | (xoredAddress << (32 - lowerCookieBits));
-
-            // Update the function table entry list
-
-            functionTableEntryList[insertionIndex] = new InvertedFunctionTableEntry32((int) rotatedAddress, DllBaseAddress.ToInt32(), _peImage.Headers.PEHeader!.SizeOfImage, loadConfigData.ExceptionTable!.HandlerCount);
-            _processContext.Process.WriteSpan(functionTableEntryListAddress, functionTableEntryList);
+            functionTable.Overflow = true;
+            _processContext.Process.WriteStruct(functionTableAddress, functionTable);
         }
 
         else
         {
-            // Read the function table entry list
-
-            var functionTableEntryListAddress = functionTableAddress + Unsafe.SizeOf<InvertedFunctionTable>();
-            var functionTableEntryList = _processContext.Process.ReadSpan<InvertedFunctionTableEntry64>(functionTableEntryListAddress, Constants.InvertedFunctionTableSize);
-
-            // Find the index where the entry for the DLL should be inserted
-
-            var insertionIndex = 1;
-
-            while (insertionIndex < functionTable.Count)
+            if (_peImage.Headers.PEHeader!.Magic == PEMagic.PE32)
             {
-                if ((ulong) DllBaseAddress.ToInt64() < (ulong) functionTableEntryList[insertionIndex].ImageBase)
+                var loadConfigData = _peImage.LoadConfigDirectory.GetLoadConfigData();
+
+                if (loadConfigData is null)
                 {
-                    break;
+                    return;
                 }
 
-                insertionIndex += 1;
-            }
+                // Read the function table entry list
 
-            if (insertionIndex < functionTable.Count)
-            {
-                // Shift the existing elements to make space for the entry for the DLL
+                var functionTableEntryListAddress = functionTableAddress + Unsafe.SizeOf<InvertedFunctionTable>();
+                var functionTableEntryList = _processContext.Process.ReadSpan<InvertedFunctionTableEntry32>(functionTableEntryListAddress, Constants.InvertedFunctionTableSize);
 
-                for (var entryIndex = functionTable.Count - 1; entryIndex >= insertionIndex; entryIndex -= 1)
+                // Find the index where the entry for the DLL should be inserted
+
+                var insertionIndex = 1;
+
+                while (insertionIndex < functionTable.CurrentSize)
                 {
-                    functionTableEntryList[entryIndex + 1] = functionTableEntryList[entryIndex];
+                    if ((uint) DllBaseAddress.ToInt32() < (uint) functionTableEntryList[insertionIndex].ImageBase)
+                    {
+                        break;
+                    }
+
+                    insertionIndex += 1;
                 }
+
+                if (insertionIndex < functionTable.CurrentSize)
+                {
+                    // Shift the existing elements to make space for the entry for the DLL
+
+                    for (var entryIndex = functionTable.CurrentSize - 1; entryIndex >= insertionIndex; entryIndex -= 1)
+                    {
+                        functionTableEntryList[entryIndex + 1] = functionTableEntryList[entryIndex];
+                    }
+                }
+
+                // Read the shared user data
+
+                var sharedUserDataAddress = UnsafeHelpers.WrapPointer(Constants.SharedUserDataAddress);
+                var sharedUserData = _processContext.Process.ReadStruct<KUserSharedData>(sharedUserDataAddress);
+
+                // Encode the address of the exception directory using the system pointer encoding algorithm
+
+                var exceptionDirectoryAddress = DllBaseAddress + loadConfigData.ExceptionTable!.RelativeAddress;
+                var rotateValue = sharedUserData.Cookie & 0x1F;
+                var encodedAddress = BitOperations.RotateRight((uint) exceptionDirectoryAddress.ToInt32() ^ (uint) sharedUserData.Cookie, rotateValue);
+
+                // Update the function table entry list
+
+                functionTableEntryList[insertionIndex] = new InvertedFunctionTableEntry32((int) encodedAddress, DllBaseAddress.ToInt32(), _peImage.Headers.PEHeader!.SizeOfImage, loadConfigData.ExceptionTable!.HandlerCount);
+                _processContext.Process.WriteSpan(functionTableEntryListAddress, functionTableEntryList);
             }
 
-            // Update the function table entry list
+            else
+            {
+                // Read the function table entry list
 
-            var exceptionDirectoryAddress = DllBaseAddress + _peImage.Headers.PEHeader!.ExceptionTableDirectory.RelativeVirtualAddress;
-            functionTableEntryList[insertionIndex] = new InvertedFunctionTableEntry64(exceptionDirectoryAddress.ToInt64(), DllBaseAddress.ToInt64(), _peImage.Headers.PEHeader!.SizeOfImage, _peImage.Headers.PEHeader!.ExceptionTableDirectory.Size);
-            _processContext.Process.WriteSpan(functionTableEntryListAddress, functionTableEntryList);
+                var functionTableEntryListAddress = functionTableAddress + Unsafe.SizeOf<InvertedFunctionTable>();
+                var functionTableEntryList = _processContext.Process.ReadSpan<InvertedFunctionTableEntry64>(functionTableEntryListAddress, Constants.InvertedFunctionTableSize);
+
+                // Find the index where the entry for the DLL should be inserted
+
+                var insertionIndex = 1;
+
+                while (insertionIndex < functionTable.CurrentSize)
+                {
+                    if ((ulong) DllBaseAddress.ToInt64() < (ulong) functionTableEntryList[insertionIndex].ImageBase)
+                    {
+                        break;
+                    }
+
+                    insertionIndex += 1;
+                }
+
+                if (insertionIndex < functionTable.CurrentSize)
+                {
+                    // Shift the existing elements to make space for the entry for the DLL
+
+                    for (var entryIndex = functionTable.CurrentSize - 1; entryIndex >= insertionIndex; entryIndex -= 1)
+                    {
+                        functionTableEntryList[entryIndex + 1] = functionTableEntryList[entryIndex];
+                    }
+                }
+
+                // Update the function table entry list
+
+                var exceptionDirectoryAddress = DllBaseAddress + _peImage.Headers.PEHeader!.ExceptionTableDirectory.RelativeVirtualAddress;
+                functionTableEntryList[insertionIndex] = new InvertedFunctionTableEntry64(exceptionDirectoryAddress.ToInt64(), DllBaseAddress.ToInt64(), _peImage.Headers.PEHeader!.SizeOfImage, _peImage.Headers.PEHeader!.ExceptionTableDirectory.Size);
+                _processContext.Process.WriteSpan(functionTableEntryListAddress, functionTableEntryList);
+            }
+
+            // Update the function table size
+
+            functionTable.CurrentSize += 1;
+            _processContext.Process.WriteStruct(functionTableAddress, functionTable);
         }
-
-        // Update the function table
-
-        var overflow = functionTable.Count + 1 == functionTable.MaxCount ? 1 : 0;
-        functionTable = new InvertedFunctionTable(functionTable.Count + 1, functionTable.MaxCount, overflow);
-        _processContext.Process.WriteStruct(functionTableAddress, functionTable);
     }
 
     private void LoadDependencies()
@@ -895,7 +900,8 @@ public sealed class LibraryMapper
 
             if (tlsBitmap.SizeOfBitmap == 0)
             {
-                tlsBitmap = new RtlBitmap32(Constants.TlsBitmapSize, initialTlsBitmapBufferAddress.ToInt32());
+                tlsBitmap.Buffer = initialTlsBitmapBufferAddress.ToInt32();
+                tlsBitmap.SizeOfBitmap = Constants.TlsBitmapSize;
 
                 // Initialise the actual TLS bitmap size
 
@@ -946,7 +952,8 @@ public sealed class LibraryMapper
                         }
                     }
 
-                    tlsBitmap = new RtlBitmap32(tlsBitmap.SizeOfBitmap + Constants.TlsBitmapSize, newTlsBitmapBufferAddress.ToInt32());
+                    tlsBitmap.Buffer = newTlsBitmapBufferAddress.ToInt32();
+                    tlsBitmap.SizeOfBitmap += Constants.TlsBitmapSize;
 
                     // Update the actual TLS bitmap size
 
@@ -955,7 +962,7 @@ public sealed class LibraryMapper
 
                 else
                 {
-                    tlsBitmap = new RtlBitmap32(tlsBitmap.SizeOfBitmap + Constants.TlsBitmapSize, tlsBitmap.Buffer);
+                    tlsBitmap.SizeOfBitmap += Constants.TlsBitmapSize;
                 }
             }
 
@@ -972,7 +979,8 @@ public sealed class LibraryMapper
 
             if (tlsBitmap.SizeOfBitmap == 0)
             {
-                tlsBitmap = new RtlBitmap64(Constants.TlsBitmapSize, initialTlsBitmapBufferAddress.ToInt64());
+                tlsBitmap.Buffer = initialTlsBitmapBufferAddress.ToInt64();
+                tlsBitmap.SizeOfBitmap = Constants.TlsBitmapSize;
 
                 // Initialise the actual TLS bitmap size
 
@@ -1023,7 +1031,8 @@ public sealed class LibraryMapper
                         }
                     }
 
-                    tlsBitmap = new RtlBitmap64(tlsBitmap.SizeOfBitmap + Constants.TlsBitmapSize, newTlsBitmapBufferAddress.ToInt64());
+                    tlsBitmap.Buffer = newTlsBitmapBufferAddress.ToInt64();
+                    tlsBitmap.SizeOfBitmap += Constants.TlsBitmapSize;
 
                     // Update the actual TLS bitmap size
 
@@ -1032,7 +1041,7 @@ public sealed class LibraryMapper
 
                 else
                 {
-                    tlsBitmap = new RtlBitmap64(tlsBitmap.SizeOfBitmap + Constants.TlsBitmapSize, tlsBitmap.Buffer);
+                    tlsBitmap.SizeOfBitmap += Constants.TlsBitmapSize;
                 }
             }
 
@@ -1080,7 +1089,7 @@ public sealed class LibraryMapper
 
             var removalIndex = 1;
 
-            while (removalIndex < functionTable.Count)
+            while (removalIndex < functionTable.CurrentSize)
             {
                 if (DllBaseAddress.ToInt32() == functionTableEntryList[removalIndex].ImageBase)
                 {
@@ -1090,11 +1099,11 @@ public sealed class LibraryMapper
                 removalIndex += 1;
             }
 
-            if (removalIndex < functionTable.Count - 1)
+            if (removalIndex < functionTable.CurrentSize - 1)
             {
                 // Shift the existing elements to overwrite the entry for the DLL
 
-                for (var entryIndex = removalIndex; entryIndex < functionTable.Count; entryIndex += 1)
+                for (var entryIndex = removalIndex; entryIndex < functionTable.CurrentSize; entryIndex += 1)
                 {
                     functionTableEntryList[entryIndex] = functionTableEntryList[entryIndex + 1];
                 }
@@ -1121,7 +1130,7 @@ public sealed class LibraryMapper
 
             var removalIndex = 1;
 
-            while (removalIndex < functionTable.Count)
+            while (removalIndex < functionTable.CurrentSize)
             {
                 if (DllBaseAddress.ToInt64() == functionTableEntryList[removalIndex].ImageBase)
                 {
@@ -1131,11 +1140,11 @@ public sealed class LibraryMapper
                 removalIndex += 1;
             }
 
-            if (removalIndex < functionTable.Count - 1)
+            if (removalIndex < functionTable.CurrentSize - 1)
             {
                 // Shift the existing elements to overwrite the entry for the DLL
 
-                for (var entryIndex = removalIndex; entryIndex < functionTable.Count; entryIndex += 1)
+                for (var entryIndex = removalIndex; entryIndex < functionTable.CurrentSize; entryIndex += 1)
                 {
                     functionTableEntryList[entryIndex] = functionTableEntryList[entryIndex + 1];
                 }
@@ -1151,9 +1160,10 @@ public sealed class LibraryMapper
             _processContext.Process.WriteSpan(functionTableEntryListAddress, functionTableEntryList);
         }
 
-        // Update the function table
+        // Update the function table size
 
-        functionTable = new InvertedFunctionTable(functionTable.Count - 1, functionTable.MaxCount, 0);
+        functionTable.CurrentSize -= 1;
+        functionTable.Overflow = false;
         _processContext.Process.WriteStruct(functionTableAddress, functionTable);
     }
 }

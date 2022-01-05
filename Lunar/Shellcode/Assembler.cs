@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using Lunar.Native;
 using Lunar.Shellcode.Records;
 
@@ -9,11 +6,11 @@ namespace Lunar.Shellcode;
 
 internal static class Assembler
 {
-    internal static Span<byte> AssembleCall32(CallDescriptor<int> callDescriptor)
+    internal static Span<byte> AssembleCall32(CallDescriptor<int> descriptor)
     {
         var shellcode = new List<byte>();
 
-        foreach (var argument in callDescriptor.Arguments.Reverse())
+        foreach (var argument in descriptor.Arguments.Reverse())
         {
             switch (argument)
             {
@@ -41,18 +38,18 @@ internal static class Assembler
         // mov eax, Address
 
         shellcode.Add(0xB8);
-        shellcode.AddRange(BitConverter.GetBytes(callDescriptor.Address.ToInt32()));
+        shellcode.AddRange(BitConverter.GetBytes(descriptor.Address.ToInt32()));
 
         // call eax
 
         shellcode.AddRange(new byte[] { 0xFF, 0xD0 });
 
-        if (callDescriptor.ReturnAddress != IntPtr.Zero)
+        if (descriptor.ReturnAddress != IntPtr.Zero)
         {
             // mov [ReturnAddress], eax
 
             shellcode.Add(0xA3);
-            shellcode.AddRange(BitConverter.GetBytes(callDescriptor.ReturnAddress.ToInt32()));
+            shellcode.AddRange(BitConverter.GetBytes(descriptor.ReturnAddress.ToInt32()));
         }
 
         // xor eax, eax
@@ -66,18 +63,18 @@ internal static class Assembler
         return CollectionsMarshal.AsSpan(shellcode);
     }
 
-    internal static Span<byte> AssembleCall64(CallDescriptor<long> callDescriptor)
+    internal static Span<byte> AssembleCall64(CallDescriptor<long> descriptor)
     {
         var shellcode = new List<byte>();
-        var shadowSpaceSize = Constants.ShadowSpaceSize + sizeof(long) * Math.Max(0, callDescriptor.Arguments.Count - 4);
+        var shadowSpaceSize = Constants.ShadowSpaceSize + sizeof(long) * Math.Max(0, descriptor.Arguments.Count - 4);
 
         // sub rsp, shadowSpaceSize
 
         shellcode.AddRange(new byte[] { 0x48, 0x83, 0xEC, (byte) shadowSpaceSize });
 
-        if (callDescriptor.Arguments.Count > 0)
+        if (descriptor.Arguments.Count > 0)
         {
-            var argument = callDescriptor.Arguments[0];
+            var argument = descriptor.Arguments[0];
 
             switch (argument)
             {
@@ -112,9 +109,9 @@ internal static class Assembler
             }
         }
 
-        if (callDescriptor.Arguments.Count > 1)
+        if (descriptor.Arguments.Count > 1)
         {
-            var argument = callDescriptor.Arguments[1];
+            var argument = descriptor.Arguments[1];
 
             switch (argument)
             {
@@ -149,9 +146,9 @@ internal static class Assembler
             }
         }
 
-        if (callDescriptor.Arguments.Count > 2)
+        if (descriptor.Arguments.Count > 2)
         {
-            var argument = callDescriptor.Arguments[2];
+            var argument = descriptor.Arguments[2];
 
             switch (argument)
             {
@@ -186,9 +183,9 @@ internal static class Assembler
             }
         }
 
-        if (callDescriptor.Arguments.Count > 3)
+        if (descriptor.Arguments.Count > 3)
         {
-            var argument = callDescriptor.Arguments[3];
+            var argument = descriptor.Arguments[3];
 
             switch (argument)
             {
@@ -223,9 +220,9 @@ internal static class Assembler
             }
         }
 
-        if (callDescriptor.Arguments.Count > 4)
+        if (descriptor.Arguments.Count > 4)
         {
-            foreach (var argument in callDescriptor.Arguments.Skip(4).Reverse())
+            foreach (var argument in descriptor.Arguments.Skip(4).Reverse())
             {
                 switch (argument)
                 {
@@ -268,18 +265,18 @@ internal static class Assembler
         // mov rax, Address
 
         shellcode.AddRange(new byte[] { 0x48, 0xB8 });
-        shellcode.AddRange(BitConverter.GetBytes(callDescriptor.Address.ToInt64()));
+        shellcode.AddRange(BitConverter.GetBytes(descriptor.Address.ToInt64()));
 
         // call rax
 
         shellcode.AddRange(new byte[] { 0xFF, 0xD0 });
 
-        if (callDescriptor.ReturnAddress != IntPtr.Zero)
+        if (descriptor.ReturnAddress != IntPtr.Zero)
         {
             // mov [ReturnAddress], rax
 
             shellcode.AddRange(new byte[] { 0x48, 0xA3 });
-            shellcode.AddRange(BitConverter.GetBytes(callDescriptor.ReturnAddress.ToInt64()));
+            shellcode.AddRange(BitConverter.GetBytes(descriptor.ReturnAddress.ToInt64()));
         }
 
         // xor eax, eax

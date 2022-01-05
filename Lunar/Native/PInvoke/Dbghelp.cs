@@ -1,5 +1,4 @@
-﻿using System;
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using Lunar.Native.Enums;
 using Lunar.Native.Structs;
 using Microsoft.Win32.SafeHandles;

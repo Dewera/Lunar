@@ -1,5 +1,4 @@
-﻿using System;
-using Lunar.Utilities;
+﻿using Lunar.Utilities;
 
 namespace Lunar.Remote;
 

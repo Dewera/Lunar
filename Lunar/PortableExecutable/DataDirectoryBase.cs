@@ -1,5 +1,4 @@
-﻿using System;
-using System.Reflection.PortableExecutable;
+﻿using System.Reflection.PortableExecutable;
 
 namespace Lunar.PortableExecutable;
 

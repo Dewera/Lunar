@@ -1,7 +1,4 @@
-﻿using System;
-using System.Diagnostics;
-using System.IO;
-using System.Threading;
+﻿using System.Diagnostics;
 using Xunit;
 
 namespace Lunar.Tests;
@@ -15,7 +12,7 @@ public sealed class X86Tests : IDisposable
     public X86Tests()
     {
         _testBinaryDirectoryPath = Path.GetFullPath(@"..\..\..\TestBinaries\bin\x86\Release");
-        _process = new Process {StartInfo = {FileName = Path.Combine(_testBinaryDirectoryPath, "Target.exe"), UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden}};
+        _process = new Process { StartInfo = { FileName = Path.Combine(_testBinaryDirectoryPath, "Target.exe"), UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden } };
         _process.Start();
 
         // Wait an arbitrary amount of time (10 milliseconds) for the process to initialise

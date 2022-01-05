@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Lunar.Native.Enums;
+﻿namespace Lunar.Native.Enums;
 
 [Flags]
 internal enum SymbolOptions

@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Lunar.Utilities;
+﻿namespace Lunar.Utilities;
 
 internal static class Executor
 {

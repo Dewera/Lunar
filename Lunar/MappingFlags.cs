@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Lunar;
+﻿namespace Lunar;
 
 /// <summary>
 /// Defines actions that the mapper should perform during the mapping process

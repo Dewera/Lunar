@@ -1,9 +1,6 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
+﻿using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -49,14 +46,14 @@ internal sealed class ProcessContext
 
         if (Architecture == Architecture.X86)
         {
-            var callDescriptor = new CallDescriptor<int>(routineAddress, Array.ConvertAll(arguments, argument => (int) argument), IntPtr.Zero);
-            shellcodeBytes = Assembler.AssembleCall32(callDescriptor);
+            var descriptor = new CallDescriptor<int>(routineAddress, Array.ConvertAll(arguments, argument => (int) argument), IntPtr.Zero);
+            shellcodeBytes = Assembler.AssembleCall32(descriptor);
         }
 
         else
         {
-            var callDescriptor = new CallDescriptor<long>(routineAddress, Array.ConvertAll(arguments, argument => (long) argument), IntPtr.Zero);
-            shellcodeBytes = Assembler.AssembleCall64(callDescriptor);
+            var descriptor = new CallDescriptor<long>(routineAddress, Array.ConvertAll(arguments, argument => (long) argument), IntPtr.Zero);
+            shellcodeBytes = Assembler.AssembleCall64(descriptor);
         }
 
         ExecuteShellcode(shellcodeBytes);
@@ -75,14 +72,14 @@ internal sealed class ProcessContext
 
             if (Architecture == Architecture.X86)
             {
-                var callDescriptor = new CallDescriptor<int>(routineAddress, Array.ConvertAll(arguments, argument => (int) argument), returnAddress);
-                shellcodeBytes = Assembler.AssembleCall32(callDescriptor);
+                var descriptor = new CallDescriptor<int>(routineAddress, Array.ConvertAll(arguments, argument => (int) argument), returnAddress);
+                shellcodeBytes = Assembler.AssembleCall32(descriptor);
             }
 
             else
             {
-                var callDescriptor = new CallDescriptor<long>(routineAddress, Array.ConvertAll(arguments, argument => (long) argument), returnAddress);
-                shellcodeBytes = Assembler.AssembleCall64(callDescriptor);
+                var descriptor = new CallDescriptor<long>(routineAddress, Array.ConvertAll(arguments, argument => (long) argument), returnAddress);
+                shellcodeBytes = Assembler.AssembleCall64(descriptor);
             }
 
             ExecuteShellcode(shellcodeBytes);

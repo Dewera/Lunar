@@ -1,5 +1,4 @@
-﻿using System;
-using System.Reflection.PortableExecutable;
+﻿using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
 using Lunar.Native.Structs;
 using Lunar.PortableExecutable.Records;
