@@ -3,14 +3,4 @@
 namespace Lunar.Native.Structs;
 
 [StructLayout(LayoutKind.Explicit, Size = 28)]
-internal readonly struct ApiSetNamespace
-{
-    [FieldOffset(0xC)]
-    internal readonly int Count;
-    [FieldOffset(0x10)]
-    internal readonly int EntryOffset;
-    [FieldOffset(0x14)]
-    internal readonly int HashOffset;
-    [FieldOffset(0x18)]
-    internal readonly int HashFactor;
-}
+internal readonly record struct ApiSetNamespace([field: FieldOffset(0xC)] int Count, [field: FieldOffset(0x10)] int EntryOffset, [field: FieldOffset(0x14)] int HashOffset, [field: FieldOffset(0x18)] int HashFactor);

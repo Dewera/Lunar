@@ -3,10 +3,4 @@
 namespace Lunar.Native.Structs;
 
 [StructLayout(LayoutKind.Explicit, Size = 8)]
-internal readonly struct ApiSetHashEntry
-{
-    [FieldOffset(0x0)]
-    internal readonly int Hash;
-    [FieldOffset(0x4)]
-    internal readonly int Index;
-}
+internal readonly record struct ApiSetHashEntry([field: FieldOffset(0x0)] int Hash, [field: FieldOffset(0x4)] int Index);

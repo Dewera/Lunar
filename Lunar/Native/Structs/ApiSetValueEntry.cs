@@ -3,10 +3,4 @@
 namespace Lunar.Native.Structs;
 
 [StructLayout(LayoutKind.Explicit, Size = 20)]
-internal readonly struct ApiSetValueEntry
-{
-    [FieldOffset(0xC)]
-    internal readonly int ValueOffset;
-    [FieldOffset(0x10)]
-    internal readonly int ValueCount;
-}
+internal readonly record struct ApiSetValueEntry([field: FieldOffset(0xC)] int ValueOffset, [field: FieldOffset(0x10)] int ValueCount);

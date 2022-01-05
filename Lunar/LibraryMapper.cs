@@ -306,12 +306,12 @@ public sealed class LibraryMapper
 
             var previousEntryAddress = UnsafeHelpers.WrapPointer(tlsEntry.EntryLinks.Blink);
             var previousEntry = _processContext.Process.ReadStruct<ListEntry32>(previousEntryAddress);
-            previousEntry.Flink = tlsEntry.EntryLinks.Flink;
+            previousEntry = previousEntry with { Flink = tlsEntry.EntryLinks.Flink };
             _processContext.Process.WriteStruct(previousEntryAddress, previousEntry);
 
             var nextEntryAddress = UnsafeHelpers.WrapPointer(tlsEntry.EntryLinks.Flink);
             var nextEntry = _processContext.Process.ReadStruct<ListEntry32>(nextEntryAddress);
-            nextEntry.Blink = tlsEntry.EntryLinks.Blink;
+            nextEntry = nextEntry with { Blink = tlsEntry.EntryLinks.Blink };
             _processContext.Process.WriteStruct(nextEntryAddress, nextEntry);
         }
 
@@ -325,12 +325,12 @@ public sealed class LibraryMapper
 
             var previousEntryAddress = UnsafeHelpers.WrapPointer(tlsEntry.EntryLinks.Blink);
             var previousEntry = _processContext.Process.ReadStruct<ListEntry64>(previousEntryAddress);
-            previousEntry.Flink = tlsEntry.EntryLinks.Flink;
+            previousEntry = previousEntry with { Flink = tlsEntry.EntryLinks.Flink };
             _processContext.Process.WriteStruct(previousEntryAddress, previousEntry);
 
             var nextEntryAddress = UnsafeHelpers.WrapPointer(tlsEntry.EntryLinks.Flink);
             var nextEntry = _processContext.Process.ReadStruct<ListEntry64>(nextEntryAddress);
-            nextEntry.Blink = tlsEntry.EntryLinks.Blink;
+            nextEntry = nextEntry with { Blink = tlsEntry.EntryLinks.Blink };
             _processContext.Process.WriteStruct(nextEntryAddress, nextEntry);
         }
 
@@ -364,8 +364,6 @@ public sealed class LibraryMapper
             usingExportSuppression = _processContext.CallRoutine<bool>(_processContext.GetNtdllSymbolAddress("LdrControlFlowGuardEnforcedWithExportSuppression"));
         }
 
-        // Get the address of the control flow guard functions
-
         var checkFunctionName = "LdrpValidateUserCallTarget";
         var dispatchFunctionName = "LdrpDispatchUserCallTarget";
 
@@ -375,36 +373,29 @@ public sealed class LibraryMapper
             dispatchFunctionName = $"{dispatchFunctionName}ES";
         }
 
-        var checkFunctionAddress = _processContext.GetNtdllSymbolAddress(checkFunctionName);
-        var dispatchFunctionAddress = _peImage.Headers.PEHeader!.Magic == PEMagic.PE32 ? IntPtr.Zero : _processContext.GetNtdllSymbolAddress(dispatchFunctionName);
-
-        // Update the check function pointer
+        // Read the load config directory
 
         var loadConfigDirectoryAddress = DllBaseAddress + _peImage.Headers.PEHeader!.LoadConfigTableDirectory.RelativeVirtualAddress;
 
-        IntPtr checkFunctionUpdateAddress;
-
         if (_peImage.Headers.PEHeader!.Magic == PEMagic.PE32)
         {
-            checkFunctionUpdateAddress = loadConfigDirectoryAddress + Marshal.OffsetOf<ImageLoadConfigDirectory32>("GuardCFCheckFunctionPointer").ToInt32();
+            var loadConfigDirectory = _processContext.Process.ReadStruct<ImageLoadConfigDirectory32>(loadConfigDirectoryAddress);
+
+            // Update the check function pointer
+
+            loadConfigDirectory = loadConfigDirectory with { GuardCFCheckFunctionPointer = _processContext.GetNtdllSymbolAddress(checkFunctionName).ToInt32() };
+            _processContext.Process.WriteStruct(loadConfigDirectoryAddress, loadConfigDirectory);
         }
 
         else
         {
-            checkFunctionUpdateAddress = loadConfigDirectoryAddress + Marshal.OffsetOf<ImageLoadConfigDirectory64>("GuardCFCheckFunctionPointer").ToInt32();
+            var loadConfigDirectory = _processContext.Process.ReadStruct<ImageLoadConfigDirectory64>(loadConfigDirectoryAddress);
+
+            // Update the check and dispatch function pointers
+
+            loadConfigDirectory = loadConfigDirectory with { GuardCFCheckFunctionPointer = _processContext.GetNtdllSymbolAddress(checkFunctionName).ToInt64(), GuardCFDispatchFunctionPointer = _processContext.GetNtdllSymbolAddress(dispatchFunctionName).ToInt64() };
+            _processContext.Process.WriteStruct(loadConfigDirectoryAddress, loadConfigDirectory);
         }
-
-        _processContext.Process.WriteStruct(checkFunctionUpdateAddress, checkFunctionAddress);
-
-        // Update the dispatch function pointer
-
-        if (_peImage.Headers.PEHeader!.Magic == PEMagic.PE32)
-        {
-            return;
-        }
-
-        var dispatchFunctionUpdateAddress = loadConfigDirectoryAddress + Marshal.OffsetOf<ImageLoadConfigDirectory64>("GuardCFDispatchFunctionPointer").ToInt32();
-        _processContext.Process.WriteStruct(dispatchFunctionUpdateAddress, dispatchFunctionAddress);
     }
 
     private void InitialiseSecurityCookie()
@@ -602,7 +593,7 @@ public sealed class LibraryMapper
         {
             // Mark the function table as overflowed
 
-            functionTable.Overflow = true;
+            functionTable = functionTable with { Overflow = true };
             _processContext.Process.WriteStruct(functionTableAddress, functionTable);
         }
 
@@ -703,7 +694,7 @@ public sealed class LibraryMapper
 
             // Update the function table size
 
-            functionTable.CurrentSize += 1;
+            functionTable = functionTable with { CurrentSize = functionTable.CurrentSize + 1 };
             _processContext.Process.WriteStruct(functionTableAddress, functionTable);
         }
     }
@@ -830,7 +821,6 @@ public sealed class LibraryMapper
         }
 
         var tlsBitmapAddress = _processContext.GetNtdllSymbolAddress("LdrpTlsBitmap");
-        using var pebLock = new SafePebLock(_processContext);
 
         // Clear the index from the TLS bitmap
 
@@ -900,8 +890,7 @@ public sealed class LibraryMapper
 
             if (tlsBitmap.SizeOfBitmap == 0)
             {
-                tlsBitmap.Buffer = initialTlsBitmapBufferAddress.ToInt32();
-                tlsBitmap.SizeOfBitmap = Constants.TlsBitmapSize;
+                tlsBitmap = tlsBitmap with { Buffer = initialTlsBitmapBufferAddress.ToInt32(), SizeOfBitmap = Constants.TlsBitmapSize };
 
                 // Initialise the actual TLS bitmap size
 
@@ -916,6 +905,8 @@ public sealed class LibraryMapper
 
                 if (_tlsData.Index != -1)
                 {
+                    _tlsData.ModifiedBitmap = false;
+
                     return;
                 }
 
@@ -952,8 +943,7 @@ public sealed class LibraryMapper
                         }
                     }
 
-                    tlsBitmap.Buffer = newTlsBitmapBufferAddress.ToInt32();
-                    tlsBitmap.SizeOfBitmap += Constants.TlsBitmapSize;
+                    tlsBitmap = tlsBitmap with { Buffer = newTlsBitmapBufferAddress.ToInt32(), SizeOfBitmap = tlsBitmap.SizeOfBitmap + Constants.TlsBitmapSize };
 
                     // Update the actual TLS bitmap size
 
@@ -962,7 +952,7 @@ public sealed class LibraryMapper
 
                 else
                 {
-                    tlsBitmap.SizeOfBitmap += Constants.TlsBitmapSize;
+                    tlsBitmap = tlsBitmap with { SizeOfBitmap = tlsBitmap.SizeOfBitmap + Constants.TlsBitmapSize };
                 }
             }
 
@@ -979,8 +969,7 @@ public sealed class LibraryMapper
 
             if (tlsBitmap.SizeOfBitmap == 0)
             {
-                tlsBitmap.Buffer = initialTlsBitmapBufferAddress.ToInt64();
-                tlsBitmap.SizeOfBitmap = Constants.TlsBitmapSize;
+                tlsBitmap = tlsBitmap with { Buffer = initialTlsBitmapBufferAddress.ToInt64(), SizeOfBitmap = Constants.TlsBitmapSize };
 
                 // Initialise the actual TLS bitmap size
 
@@ -995,6 +984,8 @@ public sealed class LibraryMapper
 
                 if (_tlsData.Index != -1)
                 {
+                    _tlsData.ModifiedBitmap = false;
+
                     return;
                 }
 
@@ -1031,8 +1022,7 @@ public sealed class LibraryMapper
                         }
                     }
 
-                    tlsBitmap.Buffer = newTlsBitmapBufferAddress.ToInt64();
-                    tlsBitmap.SizeOfBitmap += Constants.TlsBitmapSize;
+                    tlsBitmap = tlsBitmap with { Buffer = newTlsBitmapBufferAddress.ToInt64(), SizeOfBitmap = tlsBitmap.SizeOfBitmap + Constants.TlsBitmapSize };
 
                     // Update the actual TLS bitmap size
 
@@ -1041,7 +1031,7 @@ public sealed class LibraryMapper
 
                 else
                 {
-                    tlsBitmap.SizeOfBitmap += Constants.TlsBitmapSize;
+                    tlsBitmap = tlsBitmap with { SizeOfBitmap = tlsBitmap.SizeOfBitmap + Constants.TlsBitmapSize };
                 }
             }
 
@@ -1162,8 +1152,7 @@ public sealed class LibraryMapper
 
         // Update the function table size
 
-        functionTable.CurrentSize -= 1;
-        functionTable.Overflow = false;
+        functionTable = functionTable with { CurrentSize = functionTable.CurrentSize - 1, Overflow = false };
         _processContext.Process.WriteStruct(functionTableAddress, functionTable);
     }
 }
