@@ -15,7 +15,7 @@ internal sealed class ApiSetMap
         _apiSetMapAddress = GetNativeAddress();
     }
 
-    internal string? ResolveApiSetName(string apiSetName)
+    internal string? ResolveApiSetName(string apiSetName, string? parentName)
     {
         // Read the namespace of the API set
 
@@ -47,15 +47,57 @@ internal sealed class ApiSetMap
                 var namespaceEntryAddress = _apiSetMapAddress + @namespace.EntryOffset + Unsafe.SizeOf<ApiSetNamespaceEntry>() * hashEntry.Index;
                 var namespaceEntry = Marshal.PtrToStructure<ApiSetNamespaceEntry>(namespaceEntryAddress);
 
-                // Read the first value entry that the namespace entry maps to
+                // Read the namespace entry name
+
+                var namespaceEntryNameAddress = _apiSetMapAddress + namespaceEntry.NameOffset;
+                var namespaceEntryName = Marshal.PtrToStringUni(namespaceEntryNameAddress, namespaceEntry.NameLength / sizeof(char));
+
+                // Ensure the correct hash bucket is being used
+
+                if (!charactersToHash.Equals(namespaceEntryName[..namespaceEntryName.LastIndexOf("-", StringComparison.Ordinal)]))
+                {
+                    break;
+                }
+
+                // Read the default value entry
 
                 var valueEntryAddress = _apiSetMapAddress + namespaceEntry.ValueOffset;
                 var valueEntry = Marshal.PtrToStructure<ApiSetValueEntry>(valueEntryAddress);
 
-                // Read the value entry name
+                // Read the default value entry name
 
                 var valueEntryNameAddress = _apiSetMapAddress + valueEntry.ValueOffset;
                 var valueEntryName = Marshal.PtrToStringUni(valueEntryNameAddress, valueEntry.ValueCount / sizeof(char));
+
+                if (parentName is null || valueEntry.ValueCount == 1)
+                {
+                    return valueEntryName;
+                }
+
+                // Search for an alternative host using the parent
+
+                for (var valueEntryIndex = namespaceEntry.ValueCount - 1; valueEntryIndex >= 0; valueEntryIndex -= 1)
+                {
+                    // Read the value entry
+
+                    valueEntryAddress = _apiSetMapAddress + namespaceEntry.ValueOffset + Unsafe.SizeOf<ApiSetValueEntry>() * valueEntryIndex;
+                    valueEntry = Marshal.PtrToStructure<ApiSetValueEntry>(valueEntryAddress);
+
+                    // Read the value entry alias name
+
+                    var valueEntryAliasNameAddress = _apiSetMapAddress + valueEntry.NameOffset;
+                    var valueEntryAliasName = Marshal.PtrToStringUni(valueEntryAliasNameAddress, valueEntry.NameLength / sizeof(char));
+
+                    if (parentName.Equals(valueEntryAliasName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Read the value entry name
+
+                        valueEntryNameAddress = _apiSetMapAddress + valueEntry.ValueOffset;
+                        valueEntryName = Marshal.PtrToStringUni(valueEntryNameAddress, valueEntry.ValueCount / sizeof(char));
+
+                        break;
+                    }
+                }
 
                 return valueEntryName;
             }

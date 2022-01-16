@@ -109,7 +109,7 @@ internal sealed class ProcessContext
 
     internal IntPtr GetFunctionAddress(string moduleName, string functionName)
     {
-        var (moduleAddress, peImage) = GetModule(moduleName);
+        var (moduleAddress, peImage) = GetModule(moduleName, null);
         var function = peImage.ExportDirectory.GetExportedFunction(functionName);
 
         if (function is null)
@@ -117,12 +117,12 @@ internal sealed class ProcessContext
             throw new ApplicationException($"Failed to find the function {functionName} in the module {moduleName.ToLower()}");
         }
 
-        return function.ForwarderString is null ? moduleAddress + function.RelativeAddress : ResolveForwardedFunction(function.ForwarderString);
+        return function.ForwarderString is null ? moduleAddress + function.RelativeAddress : ResolveForwardedFunction(function.ForwarderString, null);
     }
 
     internal IntPtr GetFunctionAddress(string moduleName, int functionOrdinal)
     {
-        var (moduleAddress, peImage) = GetModule(moduleName);
+        var (moduleAddress, peImage) = GetModule(moduleName, null);
         var function = peImage.ExportDirectory.GetExportedFunction(functionOrdinal);
 
         if (function is null)
@@ -130,7 +130,7 @@ internal sealed class ProcessContext
             throw new ApplicationException($"Failed to find the function #{functionOrdinal} in the module {moduleName.ToLower()}");
         }
 
-        return function.ForwarderString is null ? moduleAddress + function.RelativeAddress : ResolveForwardedFunction(function.ForwarderString);
+        return function.ForwarderString is null ? moduleAddress + function.RelativeAddress : ResolveForwardedFunction(function.ForwarderString, null);
     }
 
     internal IntPtr GetHeapAddress()
@@ -159,12 +159,12 @@ internal sealed class ProcessContext
 
     internal IntPtr GetModuleAddress(string moduleName)
     {
-        return GetModule(moduleName).Address;
+        return GetModule(moduleName, null).Address;
     }
 
     internal IntPtr GetNtdllSymbolAddress(string symbolName)
     {
-        return GetModule("ntdll.dll").Address + _symbolHandler.GetSymbol(symbolName).RelativeAddress;
+        return GetModule("ntdll.dll", null).Address + _symbolHandler.GetSymbol(symbolName).RelativeAddress;
     }
 
     internal void NotifyModuleLoad(IntPtr moduleAddress, string moduleFilePath)
@@ -172,11 +172,11 @@ internal sealed class ProcessContext
         _moduleCache.TryAdd(Path.GetFileName(moduleFilePath), new Module(moduleAddress, new PeImage(File.ReadAllBytes(moduleFilePath))));
     }
 
-    internal string ResolveModuleName(string moduleName)
+    internal string ResolveModuleName(string moduleName, string? parentName)
     {
         if (moduleName.StartsWith("api-ms") || moduleName.StartsWith("ext-ms"))
         {
-            return _apiSetMap.ResolveApiSetName(moduleName) ?? moduleName;
+            return _apiSetMap.ResolveApiSetName(moduleName, parentName) ?? moduleName;
         }
 
         return moduleName;
@@ -216,9 +216,9 @@ internal sealed class ProcessContext
         }
     }
 
-    private Module GetModule(string moduleName)
+    private Module GetModule(string moduleName, string? parentName)
     {
-        moduleName = ResolveModuleName(moduleName);
+        moduleName = ResolveModuleName(moduleName, parentName);
 
         if (_moduleCache.TryGetValue(moduleName, out var module))
         {
@@ -284,12 +284,12 @@ internal sealed class ProcessContext
         throw new ApplicationException($"Failed to find the module {moduleName.ToLower()} in the process");
     }
 
-    private IntPtr ResolveForwardedFunction(string forwarderString)
+    private IntPtr ResolveForwardedFunction(string forwarderString, string? parentName)
     {
         while (true)
         {
             var forwardedData = forwarderString.Split(".");
-            var (moduleAddress, peImage) = GetModule($"{forwardedData[0]}.dll");
+            var (moduleAddress, peImage) = GetModule($"{forwardedData[0]}.dll", parentName);
 
             // Retrieve the forwarded function
 
@@ -311,14 +311,13 @@ internal sealed class ProcessContext
                 throw new ApplicationException($"Failed to find the function {forwardedData[1]} in the module {forwardedData[0].ToLower()}.dll");
             }
 
-            // Handle cyclical forwarding
-
-            if (forwardedFunction.ForwarderString is null || forwardedFunction.ForwarderString.Equals(forwarderString, StringComparison.OrdinalIgnoreCase))
+            if (forwardedFunction.ForwarderString is null)
             {
                 return moduleAddress + forwardedFunction.RelativeAddress;
             }
 
             forwarderString = forwardedFunction.ForwarderString;
+            parentName = ResolveModuleName($"{forwardedData[0]}.dll", parentName);
         }
     }
 }

@@ -707,7 +707,7 @@ public sealed class LibraryMapper
         {
             // Write the dependency file path into the process
 
-            var dependencyFilePath = _fileResolver.ResolveFilePath(_processContext.ResolveModuleName(dependencyName), activationContext);
+            var dependencyFilePath = _fileResolver.ResolveFilePath(_processContext.ResolveModuleName(dependencyName, null), activationContext);
 
             if (dependencyFilePath is null)
             {
