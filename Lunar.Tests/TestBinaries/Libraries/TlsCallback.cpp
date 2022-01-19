@@ -12,6 +12,7 @@ void __stdcall TlsCallback(void* moduleHandle, unsigned long reason, void* reser
 
             break;
         }
+
         case DLL_PROCESS_DETACH:
         {
             TlsValue = 2;
@@ -50,6 +51,7 @@ bool __stdcall DllMain(void* moduleHandle, unsigned long reason, void* reserved)
 
             break;
         }
+
         case DLL_PROCESS_DETACH:
         {
             if (TlsValue != 2)
