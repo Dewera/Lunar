@@ -81,19 +81,9 @@ internal static class ProcessExtensions
         return MemoryMarshal.Read<T>(process.ReadSpan<byte>(address, Unsafe.SizeOf<T>()));
     }
 
-    internal static void WriteSpan<T>(this Process process, IntPtr address, Span<T> span, bool protectedPages = false) where T : unmanaged
+    internal static void WriteSpan<T>(this Process process, IntPtr address, Span<T> span) where T : unmanaged
     {
         var spanBytes = MemoryMarshal.AsBytes(span);
-
-        if (protectedPages)
-        {
-            if (!Kernel32.WriteProcessMemory(process.SafeHandle, address, in spanBytes[0], spanBytes.Length, IntPtr.Zero))
-            {
-                throw new Win32Exception();
-            }
-
-            return;
-        }
 
         var oldProtectionType = process.ProtectBuffer(address, spanBytes.Length, ProtectionType.ExecuteReadWrite);
 
@@ -111,13 +101,13 @@ internal static class ProcessExtensions
         }
     }
 
-    internal static void WriteString(this Process process, IntPtr address, string @string, bool protectedPages = false)
+    internal static void WriteString(this Process process, IntPtr address, string @string)
     {
-        process.WriteSpan(address, Encoding.Unicode.GetBytes(@string).AsSpan(), protectedPages);
+        process.WriteSpan(address, Encoding.Unicode.GetBytes(@string).AsSpan());
     }
 
-    internal static void WriteStruct<T>(this Process process, IntPtr address, T @struct, bool protectedPages = false) where T : unmanaged
+    internal static void WriteStruct<T>(this Process process, IntPtr address, T @struct) where T : unmanaged
     {
-        process.WriteSpan(address, MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref @struct, 1)), protectedPages);
+        process.WriteSpan(address, MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref @struct, 1)));
     }
 }

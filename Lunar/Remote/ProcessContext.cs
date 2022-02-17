@@ -9,7 +9,6 @@ using Lunar.FileResolution;
 using Lunar.Native;
 using Lunar.Native.Enums;
 using Lunar.Native.PInvoke;
-using Lunar.Native.Structs;
 using Lunar.PortableExecutable;
 using Lunar.PortableExecutable.Records;
 using Lunar.Remote.Records;
@@ -22,6 +21,8 @@ namespace Lunar.Remote;
 internal sealed class ProcessContext
 {
     internal Architecture Architecture { get; }
+    internal HeapManager HeapManager { get; }
+    internal PebLock PebLock { get; }
     internal Process Process { get; }
 
     private readonly ApiSetMap _apiSetMap;
@@ -35,6 +36,8 @@ internal sealed class ProcessContext
         _symbolHandler = new SymbolHandler(process.GetArchitecture());
 
         Architecture = process.GetArchitecture();
+        HeapManager = new HeapManager(this, process);
+        PebLock = new PebLock(this);
         Process = process;
     }
 
@@ -133,30 +136,6 @@ internal sealed class ProcessContext
         return function.ForwarderString is null ? moduleAddress + function.RelativeAddress : ResolveForwardedFunction(function.ForwarderString, null);
     }
 
-    internal IntPtr GetHeapAddress()
-    {
-        if (Architecture == Architecture.X86)
-        {
-            // Read the process WOW64 PEB
-
-            var pebAddress = Process.QueryInformation<IntPtr>(ProcessInformationType.Wow64Information);
-            var peb = Process.ReadStruct<Peb32>(pebAddress);
-
-            return UnsafeHelpers.WrapPointer(peb.ProcessHeap);
-        }
-
-        else
-        {
-            // Read the process PEB
-
-            var basicInformation = Process.QueryInformation<ProcessBasicInformation64>(ProcessInformationType.BasicInformation);
-            var pebAddress = UnsafeHelpers.WrapPointer(basicInformation.PebBaseAddress);
-            var peb = Process.ReadStruct<Peb64>(pebAddress);
-
-            return UnsafeHelpers.WrapPointer(peb.ProcessHeap);
-        }
-    }
-
     internal IntPtr GetModuleAddress(string moduleName)
     {
         return GetModule(moduleName, null).Address;
@@ -167,7 +146,7 @@ internal sealed class ProcessContext
         return GetModule("ntdll.dll", null).Address + _symbolHandler.GetSymbol(symbolName).RelativeAddress;
     }
 
-    internal void NotifyModuleLoad(IntPtr moduleAddress, string moduleFilePath)
+    internal void RecordModuleLoad(IntPtr moduleAddress, string moduleFilePath)
     {
         _moduleCache.TryAdd(Path.GetFileName(moduleFilePath), new Module(moduleAddress, new PeImage(File.ReadAllBytes(moduleFilePath))));
     }

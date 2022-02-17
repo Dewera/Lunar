@@ -12,7 +12,7 @@ internal sealed class ApiSetMap
 
     internal ApiSetMap()
     {
-        _apiSetMapAddress = GetNativeAddress();
+        _apiSetMapAddress = GetApiSetMapAddress();
     }
 
     internal string? ResolveApiSetName(string apiSetName, string? parentName)
@@ -118,7 +118,7 @@ internal sealed class ApiSetMap
         return null;
     }
 
-    private static IntPtr GetNativeAddress()
+    private static IntPtr GetApiSetMapAddress()
     {
         var pebAddress = Ntdll.RtlGetCurrentPeb();
 
