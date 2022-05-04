@@ -6,9 +6,6 @@ namespace Lunar.Native.PInvoke;
 
 internal static class Kernel32
 {
-    [DllImport("kernel32.dll", SetLastError = true)]
-    internal static extern bool CloseHandle(IntPtr handle);
-
     [DllImport("kernel32.dll")]
     internal static extern SafeProcessHandle GetCurrentProcess();
 

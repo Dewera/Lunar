@@ -1,15 +1,11 @@
 #include <Windows.h>
 
-bool __stdcall DllMain(void* moduleHandle, unsigned long reason, void* reserved)
+bool __stdcall DllMain(void* module_handle, const unsigned long reason, void* reserved)
 {
-    switch (reason)
+    if (reason == DLL_PROCESS_ATTACH || reason == DLL_PROCESS_DETACH)
     {
-        case DLL_PROCESS_ATTACH:
-        case DLL_PROCESS_DETACH:
-        {
-            break;
-        }
+        return true;
     }
 
-    return true;
+    return false;
 }

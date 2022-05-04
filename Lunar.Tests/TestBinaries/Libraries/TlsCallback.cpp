@@ -1,21 +1,20 @@
 #include <Windows.h>
 
-static int TlsValue = 0;
+static int tls_value = 0;
 
-void __stdcall TlsCallback(void* moduleHandle, unsigned long reason, void* reserved)
+void __stdcall TlsCallback(void* module_handle, const unsigned long reason, void* reserved)
 {
     switch (reason)
     {
         case DLL_PROCESS_ATTACH:
         {
-            TlsValue = 1;
+            tls_value = 1;
 
             break;
         }
-
         case DLL_PROCESS_DETACH:
         {
-            TlsValue = 2;
+            tls_value = 2;
 
             break;
         }
@@ -38,30 +37,7 @@ void __stdcall TlsCallback(void* moduleHandle, unsigned long reason, void* reser
     #pragma data_seg()
 #endif
 
-bool __stdcall DllMain(void* moduleHandle, unsigned long reason, void* reserved)
+bool __stdcall DllMain(void* module_handle, const unsigned long reason, void* reserved)
 {
-    switch (reason)
-    {
-        case DLL_PROCESS_ATTACH:
-        {
-            if (TlsValue != 1)
-            {
-                return false;
-            }
-
-            break;
-        }
-
-        case DLL_PROCESS_DETACH:
-        {
-            if (TlsValue != 2)
-            {
-                return false;
-            }
-
-            break;
-        }
-    }
-
-    return true;
+    return reason == DLL_PROCESS_ATTACH && tls_value == 1 || reason == DLL_PROCESS_DETACH && tls_value == 2;
 }

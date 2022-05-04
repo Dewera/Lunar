@@ -22,7 +22,6 @@ internal sealed class ProcessContext
 {
     internal Architecture Architecture { get; }
     internal HeapManager HeapManager { get; }
-    internal PebLock PebLock { get; }
     internal Process Process { get; }
 
     private readonly ApiSetMap _apiSetMap;
@@ -37,7 +36,6 @@ internal sealed class ProcessContext
 
         Architecture = process.GetArchitecture();
         HeapManager = new HeapManager(this, process);
-        PebLock = new PebLock(this);
         Process = process;
     }
 

@@ -9,11 +9,13 @@ namespace Lunar.Remote;
 
 internal sealed class HeapManager
 {
+    private readonly ISet<IntPtr> _bufferCache;
     private readonly IntPtr _heapAddress;
     private readonly ProcessContext _processContext;
 
     internal HeapManager(ProcessContext processContext, Process process)
     {
+        _bufferCache = new HashSet<IntPtr>();
         _heapAddress = GetHeapAddress(process);
         _processContext = processContext;
     }
@@ -27,6 +29,8 @@ internal sealed class HeapManager
             throw new ApplicationException("Failed to allocate a buffer in the process heap");
         }
 
+        _bufferCache.Add(buffer);
+
         return buffer;
     }
 
@@ -35,6 +39,16 @@ internal sealed class HeapManager
         if (!_processContext.CallRoutine<bool>(_processContext.GetFunctionAddress("kernel32.dll", "HeapFree"), _heapAddress, 0, bufferAddress))
         {
             throw new ApplicationException("Failed to free a buffer in the process heap");
+        }
+
+        _bufferCache.Remove(bufferAddress);
+    }
+
+    internal void FreeCachedBuffers()
+    {
+        foreach (var buffer in _bufferCache)
+        {
+            FreeBuffer(buffer);
         }
     }
 

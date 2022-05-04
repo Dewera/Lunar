@@ -77,7 +77,7 @@ internal sealed class ActivationContext
 
             if (dependencyVersion.Build == 0 && dependencyVersion.Revision == 0)
             {
-                matchingDirectory = matchingDirectories.Where(directory => directory.Version.Major == dependencyVersion.Major && directory.Version.Minor == dependencyVersion.Minor).OrderByDescending(directory => directory.Version).FirstOrDefault();
+                matchingDirectory = matchingDirectories.Where(directory => directory.Version.Major == dependencyVersion.Major && directory.Version.Minor == dependencyVersion.Minor).MaxBy(directory => directory.Version);
             }
 
             else
