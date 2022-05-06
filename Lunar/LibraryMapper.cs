@@ -257,7 +257,7 @@ public sealed class LibraryMapper
             _processContext.CallRoutine(callbackAddress, DllBaseAddress, reason, 0);
         }
 
-        if (_peImage.Headers.PEHeader!.AddressOfEntryPoint == 0)
+        if ((_peImage.Headers.CorHeader?.Flags.HasFlag(CorFlags.ILOnly) ?? false) || _peImage.Headers.PEHeader!.AddressOfEntryPoint == 0)
         {
             return;
         }
@@ -699,7 +699,14 @@ public sealed class LibraryMapper
 
     private void MapSections()
     {
-        foreach (var sectionHeader in _peImage.Headers.SectionHeaders.Where(sectionHeader => !sectionHeader.SectionCharacteristics.HasFlag(SectionCharacteristics.MemDiscardable)))
+        var sectionHeaders = _peImage.Headers.SectionHeaders.AsEnumerable();
+
+        if (_peImage.Headers.CorHeader is null || !_peImage.Headers.CorHeader.Flags.HasFlag(CorFlags.ILOnly))
+        {
+            sectionHeaders = sectionHeaders.Where(sectionHeader => !sectionHeader.SectionCharacteristics.HasFlag(SectionCharacteristics.MemDiscardable));
+        }
+
+        foreach (var sectionHeader in sectionHeaders)
         {
             if (sectionHeader.PointerToRawData == 0 || sectionHeader.SizeOfRawData == 0 && sectionHeader.VirtualSize == 0)
             {
