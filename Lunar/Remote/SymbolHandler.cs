@@ -17,7 +17,7 @@ internal sealed class SymbolHandler
 
     internal SymbolHandler(Architecture architecture)
     {
-        _pdbFilePath = FindOrDownloadSymbolFileAsync(architecture).GetAwaiter().GetResult();
+        _pdbFilePath = FindOrDownloadSymbolFile(architecture);
         _symbolCache = new Dictionary<string, Symbol>();
     }
 
@@ -84,7 +84,7 @@ internal sealed class SymbolHandler
         }
     }
 
-    private static async Task<string> FindOrDownloadSymbolFileAsync(Architecture architecture)
+    private static string FindOrDownloadSymbolFile(Architecture architecture)
     {
         // Read the ntdll.dll PDB data
 
@@ -128,7 +128,7 @@ internal sealed class SymbolHandler
         // Download the PDB from the Microsoft symbol server
 
         using var httpClient = new HttpClient();
-        using var response = await httpClient.GetAsync(new Uri($"https://msdl.microsoft.com/download/symbols/{pdbData.Path}/{pdbData.Guid:N}{pdbData.Age}/{pdbData.Path}"), HttpCompletionOption.ResponseHeadersRead);
+        using var response = httpClient.GetAsync(new Uri($"https://msdl.microsoft.com/download/symbols/{pdbData.Path}/{pdbData.Guid:N}{pdbData.Age}/{pdbData.Path}"), HttpCompletionOption.ResponseHeadersRead).GetAwaiter().GetResult();
 
         if (!response.IsSuccessStatusCode)
         {
@@ -140,27 +140,28 @@ internal sealed class SymbolHandler
             throw new HttpRequestException($"Failed to retrieve content headers for required files [{pdbData.Path}]");
         }
 
-        await using var contentStream = await response.Content.ReadAsStreamAsync();
-        await using var fileStream = new FileStream(pdbFilePath, FileMode.Create);
+        using var contentStream = response.Content.ReadAsStream();
+        using var fileStream = new FileStream(pdbFilePath, FileMode.Create);
 
         var copyBuffer = new byte[65536];
         var bytesRead = 0d;
 
         while (true)
         {
-            var blockSize = await contentStream.ReadAsync(copyBuffer);
-            bytesRead += blockSize;
+            var blockSize = contentStream.Read(copyBuffer);
 
             if (blockSize == 0)
             {
                 break;
             }
 
+            bytesRead += blockSize;
+
             var progressPercentage = bytesRead / response.Content.Headers.ContentLength.Value * 100;
             var progress = progressPercentage / 2;
             Console.Write($"\rDownloading required files [{pdbData.Path}] - [{new string('=', (int) progress)}{new string(' ', 50 - (int) progress)}] - {(int) progressPercentage}%");
 
-            await fileStream.WriteAsync(new ReadOnlyMemory<byte>(copyBuffer, 0, blockSize));
+            fileStream.Write(copyBuffer, 0, blockSize);
         }
 
         return pdbFilePath;

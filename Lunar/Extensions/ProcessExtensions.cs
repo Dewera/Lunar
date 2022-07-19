@@ -53,7 +53,6 @@ internal static class ProcessExtensions
     internal static T QueryInformation<T>(this Process process, ProcessInformationType informationType) where T : unmanaged
     {
         Span<byte> informationBytes = stackalloc byte[Unsafe.SizeOf<T>()];
-
         var status = Ntdll.NtQueryInformationProcess(process.SafeHandle, informationType, out informationBytes[0], informationBytes.Length, IntPtr.Zero);
 
         if (status != NtStatus.Success)
@@ -84,7 +83,6 @@ internal static class ProcessExtensions
     internal static void WriteSpan<T>(this Process process, IntPtr address, Span<T> span) where T : unmanaged
     {
         var spanBytes = MemoryMarshal.AsBytes(span);
-
         var oldProtectionType = process.ProtectBuffer(address, spanBytes.Length, ProtectionType.ExecuteReadWrite);
 
         try
