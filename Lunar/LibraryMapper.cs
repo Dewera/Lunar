@@ -228,6 +228,16 @@ public sealed class LibraryMapper
             DllBaseAddress = IntPtr.Zero;
         }
 
+        try
+        {
+            _processContext.HeapManager.FreeCachedBuffers();
+        }
+
+        catch (Exception exception)
+        {
+            topLevelException ??= exception;
+        }
+
         if (topLevelException is not null)
         {
             throw topLevelException;
@@ -529,7 +539,26 @@ public sealed class LibraryMapper
 
     private void InsertExceptionHandlers()
     {
-        var functionTableAddress = _processContext.GetNtdllSymbolAddress("LdrpInvertedFunctionTable");
+        IntPtr functionTableAddress;
+
+        if (_processContext.Architecture == Architecture.X86)
+        {
+            try
+            {
+                functionTableAddress = _processContext.GetNtdllSymbolAddress("LdrpInvertedFunctionTables");
+            }
+
+            catch
+            {
+                functionTableAddress = _processContext.GetNtdllSymbolAddress("LdrpInvertedFunctionTable");
+            }
+        }
+
+        else
+        {
+            functionTableAddress = _processContext.GetFunctionAddress("ntdll.dll", "KiUserInvertedFunctionTable");
+        }
+
         using var pebLock = new PebLock(_processContext);
 
         // Read the function table
@@ -997,7 +1026,26 @@ public sealed class LibraryMapper
 
     private void RemoveExceptionHandlers()
     {
-        var functionTableAddress = _processContext.GetNtdllSymbolAddress("LdrpInvertedFunctionTable");
+        IntPtr functionTableAddress;
+
+        if (_processContext.Architecture == Architecture.X86)
+        {
+            try
+            {
+                functionTableAddress = _processContext.GetNtdllSymbolAddress("LdrpInvertedFunctionTables");
+            }
+
+            catch
+            {
+                functionTableAddress = _processContext.GetNtdllSymbolAddress("LdrpInvertedFunctionTable");
+            }
+        }
+
+        else
+        {
+            functionTableAddress = _processContext.GetFunctionAddress("ntdll.dll", "KiUserInvertedFunctionTable");
+        }
+
         using var pebLock = new PebLock(_processContext);
 
         // Read the function table
