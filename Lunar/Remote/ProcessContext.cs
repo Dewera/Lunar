@@ -204,7 +204,7 @@ internal sealed class ProcessContext
 
         // Query the process for a list of its module addresses
 
-        Span<byte> moduleAddressListBytes = stackalloc byte[IntPtr.Size];
+        var moduleAddressListBytes = (stackalloc byte[IntPtr.Size]);
         var moduleType = Architecture == Architecture.X86 ? ModuleType.X86 : ModuleType.X64;
 
         if (!Kernel32.K32EnumProcessModulesEx(Process.SafeHandle, out moduleAddressListBytes[0], moduleAddressListBytes.Length, out var sizeNeeded, moduleType))
@@ -226,7 +226,7 @@ internal sealed class ProcessContext
 
         // Search for the module
 
-        Span<byte> moduleFilePathBytes = stackalloc byte[Encoding.Unicode.GetMaxByteCount(Constants.MaxPath)];
+        var moduleFilePathBytes = (stackalloc byte[Encoding.Unicode.GetMaxByteCount(Constants.MaxPath)]);
 
         foreach (var moduleAddress in MemoryMarshal.Cast<byte, IntPtr>(moduleAddressListBytes))
         {

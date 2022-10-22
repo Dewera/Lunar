@@ -737,24 +737,15 @@ public sealed class LibraryMapper
 
         foreach (var sectionHeader in sectionHeaders)
         {
-            if (sectionHeader.PointerToRawData == 0 || sectionHeader.SizeOfRawData == 0 && sectionHeader.VirtualSize == 0)
+            if (sectionHeader.SizeOfRawData == 0)
             {
                 continue;
-            }
-
-            // Calculate the raw section size
-
-            var sectionSize = sectionHeader.SizeOfRawData;
-
-            if (sectionHeader.SizeOfRawData > sectionHeader.VirtualSize)
-            {
-                sectionSize = sectionHeader.VirtualSize;
             }
 
             // Map the raw section
 
             var sectionAddress = DllBaseAddress + sectionHeader.VirtualAddress;
-            var sectionBytes = _dllBytes.Span.Slice(sectionHeader.PointerToRawData, sectionSize);
+            var sectionBytes = _dllBytes.Span.Slice(sectionHeader.PointerToRawData, sectionHeader.SizeOfRawData);
             _processContext.Process.WriteSpan(sectionAddress, sectionBytes);
 
             // Determine the protection to apply to the section

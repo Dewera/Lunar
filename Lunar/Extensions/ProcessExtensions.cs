@@ -52,7 +52,7 @@ internal static class ProcessExtensions
 
     internal static T QueryInformation<T>(this Process process, ProcessInformationType informationType) where T : unmanaged
     {
-        Span<byte> informationBytes = stackalloc byte[Unsafe.SizeOf<T>()];
+        var informationBytes = (stackalloc byte[Unsafe.SizeOf<T>()]);
         var status = Ntdll.NtQueryInformationProcess(process.SafeHandle, informationType, out informationBytes[0], informationBytes.Length, IntPtr.Zero);
 
         if (status != NtStatus.Success)
