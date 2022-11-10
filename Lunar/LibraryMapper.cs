@@ -391,7 +391,7 @@ public sealed class LibraryMapper
 
             // Update the check function pointer
 
-            _processContext.Process.WriteStruct(loadConfigDirectoryAddress, loadConfigDirectory with { GuardCFCheckFunctionPointer = _processContext.GetNtdllSymbolAddress(checkFunctionName).ToInt32() });
+            _processContext.Process.WriteStruct(loadConfigDirectoryAddress, loadConfigDirectory with { GuardCFCheckFunctionPointer = (int) _processContext.GetNtdllSymbolAddress(checkFunctionName) });
         }
 
         else
@@ -400,7 +400,7 @@ public sealed class LibraryMapper
 
             // Update the check and dispatch function pointers
 
-            _processContext.Process.WriteStruct(loadConfigDirectoryAddress, loadConfigDirectory with { GuardCFCheckFunctionPointer = _processContext.GetNtdllSymbolAddress(checkFunctionName).ToInt64(), GuardCFDispatchFunctionPointer = _processContext.GetNtdllSymbolAddress(dispatchFunctionName).ToInt64() });
+            _processContext.Process.WriteStruct(loadConfigDirectoryAddress, loadConfigDirectory with { GuardCFCheckFunctionPointer = (long) _processContext.GetNtdllSymbolAddress(checkFunctionName), GuardCFDispatchFunctionPointer = (long) _processContext.GetNtdllSymbolAddress(dispatchFunctionName) });
         }
     }
 
@@ -420,7 +420,7 @@ public sealed class LibraryMapper
 
         // Ensure the default security cookie was not generated
 
-        if (securityCookieBytes.SequenceEqual(stackalloc byte[] { 0xBB, 0x40, 0xE6, 0x4E }) || securityCookieBytes.SequenceEqual(stackalloc byte[] { 0x2B, 0x99, 0x2D, 0xDF, 0xA2, 0x32 }))
+        if (securityCookieBytes is [0xBB, 0x40, 0xE6, 0x4E] || securityCookieBytes is [0x2B, 0x99, 0x2D, 0xDF, 0xA2, 0x32])
         {
             securityCookieBytes[^1] += 1;
         }
@@ -462,23 +462,23 @@ public sealed class LibraryMapper
             // Write a TLS entry for the DLL into the process
 
             _tlsData.EntryAddress = _processContext.HeapManager.AllocateBuffer(Unsafe.SizeOf<LdrpTlsEntry32>());
-            var tlsEntry = new LdrpTlsEntry32(tlsListHead with { Flink = tlsListAddress.ToInt32() }, tlsDirectory, _tlsData.Index);
+            var tlsEntry = new LdrpTlsEntry32(tlsListHead with { Flink = (int) tlsListAddress }, tlsDirectory, _tlsData.Index);
             _processContext.Process.WriteStruct(_tlsData.EntryAddress, tlsEntry);
 
             // Insert the TLS entry into the TLS list
 
             if (tlsListAddress == tlsListTailAddress)
             {
-                _processContext.Process.WriteStruct(tlsListAddress, new ListEntry32(_tlsData.EntryAddress.ToInt32(), _tlsData.EntryAddress.ToInt32()));
+                _processContext.Process.WriteStruct(tlsListAddress, new ListEntry32((int) _tlsData.EntryAddress, (int) _tlsData.EntryAddress));
             }
 
             else
             {
-                _processContext.Process.WriteStruct(tlsListAddress, tlsListHead with { Blink = _tlsData.EntryAddress.ToInt32() });
+                _processContext.Process.WriteStruct(tlsListAddress, tlsListHead with { Blink = (int) _tlsData.EntryAddress });
 
                 try
                 {
-                    _processContext.Process.WriteStruct(tlsListTailAddress, tlsListTail with { Flink = _tlsData.EntryAddress.ToInt32() });
+                    _processContext.Process.WriteStruct(tlsListTailAddress, tlsListTail with { Flink = (int) _tlsData.EntryAddress });
                 }
 
                 catch
@@ -509,23 +509,23 @@ public sealed class LibraryMapper
             // Write a TLS entry for the DLL into the process heap
 
             _tlsData.EntryAddress = _processContext.HeapManager.AllocateBuffer(Unsafe.SizeOf<LdrpTlsEntry64>());
-            var tlsEntry = new LdrpTlsEntry64(tlsListHead with { Flink = tlsListAddress.ToInt64() }, tlsDirectory, _tlsData.Index);
+            var tlsEntry = new LdrpTlsEntry64(tlsListHead with { Flink = (long) tlsListAddress }, tlsDirectory, _tlsData.Index);
             _processContext.Process.WriteStruct(_tlsData.EntryAddress, tlsEntry);
 
             // Insert the TLS entry into the TLS list
 
             if (tlsListAddress == tlsListTailAddress)
             {
-                _processContext.Process.WriteStruct(tlsListAddress, new ListEntry64(_tlsData.EntryAddress.ToInt64(), _tlsData.EntryAddress.ToInt64()));
+                _processContext.Process.WriteStruct(tlsListAddress, new ListEntry64((long) _tlsData.EntryAddress, (long) _tlsData.EntryAddress));
             }
 
             else
             {
-                _processContext.Process.WriteStruct(tlsListAddress, tlsListHead with { Blink = _tlsData.EntryAddress.ToInt64() });
+                _processContext.Process.WriteStruct(tlsListAddress, tlsListHead with { Blink = (long) _tlsData.EntryAddress });
 
                 try
                 {
-                    _processContext.Process.WriteStruct(tlsListTailAddress, tlsListTail with { Flink = _tlsData.EntryAddress.ToInt64() });
+                    _processContext.Process.WriteStruct(tlsListTailAddress, tlsListTail with { Flink = (long) _tlsData.EntryAddress });
                 }
 
                 catch
@@ -600,7 +600,7 @@ public sealed class LibraryMapper
 
                 while (insertionIndex < functionTable.CurrentSize)
                 {
-                    if ((uint) DllBaseAddress.ToInt32() < (uint) functionTableEntryList[insertionIndex].ImageBase)
+                    if ((uint) DllBaseAddress < (uint) functionTableEntryList[insertionIndex].ImageBase)
                     {
                         break;
                     }
@@ -627,11 +627,11 @@ public sealed class LibraryMapper
 
                 var exceptionDirectoryAddress = DllBaseAddress + loadConfigData.ExceptionTable!.RelativeAddress;
                 var rotateValue = sharedUserData.Cookie & 0x1F;
-                var encodedAddress = BitOperations.RotateRight((uint) exceptionDirectoryAddress.ToInt32() ^ (uint) sharedUserData.Cookie, rotateValue);
+                var encodedAddress = BitOperations.RotateRight((uint) exceptionDirectoryAddress ^ (uint) sharedUserData.Cookie, rotateValue);
 
                 // Update the function table entry list
 
-                functionTableEntryList[insertionIndex] = new InvertedFunctionTableEntry32((int) encodedAddress, DllBaseAddress.ToInt32(), _peImage.Headers.PEHeader!.SizeOfImage, loadConfigData.ExceptionTable!.HandlerCount);
+                functionTableEntryList[insertionIndex] = new InvertedFunctionTableEntry32((int) encodedAddress, (int) DllBaseAddress, _peImage.Headers.PEHeader!.SizeOfImage, loadConfigData.ExceptionTable!.HandlerCount);
                 _processContext.Process.WriteSpan(functionTableEntryListAddress, functionTableEntryList);
             }
 
@@ -648,7 +648,7 @@ public sealed class LibraryMapper
 
                 while (insertionIndex < functionTable.CurrentSize)
                 {
-                    if ((ulong) DllBaseAddress.ToInt64() < (ulong) functionTableEntryList[insertionIndex].ImageBase)
+                    if ((ulong) DllBaseAddress < (ulong) functionTableEntryList[insertionIndex].ImageBase)
                     {
                         break;
                     }
@@ -669,7 +669,7 @@ public sealed class LibraryMapper
                 // Update the function table entry list
 
                 var exceptionDirectoryAddress = DllBaseAddress + _peImage.Headers.PEHeader!.ExceptionTableDirectory.RelativeVirtualAddress;
-                functionTableEntryList[insertionIndex] = new InvertedFunctionTableEntry64(exceptionDirectoryAddress.ToInt64(), DllBaseAddress.ToInt64(), _peImage.Headers.PEHeader!.SizeOfImage, _peImage.Headers.PEHeader!.ExceptionTableDirectory.Size);
+                functionTableEntryList[insertionIndex] = new InvertedFunctionTableEntry64((long) exceptionDirectoryAddress, (long) DllBaseAddress, _peImage.Headers.PEHeader!.SizeOfImage, _peImage.Headers.PEHeader!.ExceptionTableDirectory.Size);
                 _processContext.Process.WriteSpan(functionTableEntryListAddress, functionTableEntryList);
             }
 
@@ -812,7 +812,7 @@ public sealed class LibraryMapper
         {
             // Calculate the delta from the preferred base address
 
-            var delta = (uint) DllBaseAddress.ToInt32() - (uint) _peImage.Headers.PEHeader!.ImageBase;
+            var delta = (uint) DllBaseAddress - (uint) _peImage.Headers.PEHeader!.ImageBase;
 
             Parallel.ForEach(_peImage.RelocationDirectory.GetRelocations(), relocation =>
             {
@@ -832,7 +832,7 @@ public sealed class LibraryMapper
         {
             // Calculate the delta from the preferred base address
 
-            var delta = (ulong) DllBaseAddress.ToInt64() - _peImage.Headers.PEHeader!.ImageBase;
+            var delta = (ulong) DllBaseAddress - _peImage.Headers.PEHeader!.ImageBase;
 
             Parallel.ForEach(_peImage.RelocationDirectory.GetRelocations(), relocation =>
             {
@@ -869,7 +869,7 @@ public sealed class LibraryMapper
 
             if (tlsBitmap.SizeOfBitmap == 0)
             {
-                tlsBitmap = new RtlBitmap32(Buffer: initialTlsBitmapBufferAddress.ToInt32(), SizeOfBitmap: Constants.TlsBitmapSize);
+                tlsBitmap = new RtlBitmap32(Buffer: (int) initialTlsBitmapBufferAddress, SizeOfBitmap: Constants.TlsBitmapSize);
 
                 // Initialise the actual TLS bitmap size
 
@@ -914,7 +914,7 @@ public sealed class LibraryMapper
                         _processContext.HeapManager.FreeBuffer(currentTlsBitmapBufferAddress);
                     }
 
-                    tlsBitmap = new RtlBitmap32(Buffer: newTlsBitmapBufferAddress.ToInt32(), SizeOfBitmap: tlsBitmap.SizeOfBitmap + Constants.TlsBitmapSize);
+                    tlsBitmap = new RtlBitmap32(Buffer: (int) newTlsBitmapBufferAddress, SizeOfBitmap: tlsBitmap.SizeOfBitmap + Constants.TlsBitmapSize);
 
                     // Update the actual TLS bitmap size
 
@@ -940,7 +940,7 @@ public sealed class LibraryMapper
 
             if (tlsBitmap.SizeOfBitmap == 0)
             {
-                tlsBitmap = new RtlBitmap64(Buffer: initialTlsBitmapBufferAddress.ToInt64(), SizeOfBitmap: Constants.TlsBitmapSize);
+                tlsBitmap = new RtlBitmap64(Buffer: (long) initialTlsBitmapBufferAddress, SizeOfBitmap: Constants.TlsBitmapSize);
 
                 // Initialise the actual TLS bitmap size
 
@@ -985,7 +985,7 @@ public sealed class LibraryMapper
                         _processContext.HeapManager.FreeBuffer(currentTlsBitmapBufferAddress);
                     }
 
-                    tlsBitmap = new RtlBitmap64(Buffer: newTlsBitmapBufferAddress.ToInt64(), SizeOfBitmap: tlsBitmap.SizeOfBitmap + Constants.TlsBitmapSize);
+                    tlsBitmap = new RtlBitmap64(Buffer: (long) newTlsBitmapBufferAddress, SizeOfBitmap: tlsBitmap.SizeOfBitmap + Constants.TlsBitmapSize);
 
                     // Update the actual TLS bitmap size
 
@@ -1063,7 +1063,7 @@ public sealed class LibraryMapper
 
             while (removalIndex < functionTable.CurrentSize)
             {
-                if (DllBaseAddress.ToInt32() == functionTableEntryList[removalIndex].ImageBase)
+                if ((int) DllBaseAddress == functionTableEntryList[removalIndex].ImageBase)
                 {
                     break;
                 }
@@ -1104,7 +1104,7 @@ public sealed class LibraryMapper
 
             while (removalIndex < functionTable.CurrentSize)
             {
-                if (DllBaseAddress.ToInt64() == functionTableEntryList[removalIndex].ImageBase)
+                if ((long) DllBaseAddress == functionTableEntryList[removalIndex].ImageBase)
                 {
                     break;
                 }
