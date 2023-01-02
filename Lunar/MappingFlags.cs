@@ -17,5 +17,5 @@ public enum MappingFlags
     /// <summary>
     /// Specifies that the entry point of any TLS callbacks and the DLL should not be called
     /// </summary>
-    SkipInitialisationRoutines = 2
+    SkipInitRoutines = 2
 }

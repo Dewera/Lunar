@@ -66,7 +66,7 @@ public LibraryMapper(Process, string, MappingFlags);
 The base address of the DLL in the process
 
 ```c#
-public IntPtr DllBaseAddress { get; }
+public nint DllBaseAddress { get; }
 ```
 
 ### Methods
@@ -111,5 +111,5 @@ MappingsFlags.DiscardHeaders
 Specifies that the entry point of any TLS callbacks and the DLL should not be called
 
 ```c#
-MappingsFlags.SkipInitialisationRoutines
+MappingsFlags.SkipInitRoutines
 ```

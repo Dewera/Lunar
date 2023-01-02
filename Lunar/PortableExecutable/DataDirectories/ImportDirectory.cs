@@ -69,7 +69,6 @@ internal sealed class ImportDirectory : DataDirectoryBase
                 if ((functionThunk & int.MinValue) != 0)
                 {
                     var functionOrdinal = functionThunk & ushort.MaxValue;
-
                     yield return new ImportedFunction(null, functionOffset, functionOrdinal);
                 }
 
@@ -109,7 +108,6 @@ internal sealed class ImportDirectory : DataDirectoryBase
                 if ((functionThunk & long.MinValue) != 0)
                 {
                     var functionOrdinal = functionThunk & ushort.MaxValue;
-
                     yield return new ImportedFunction(null, functionOffset, (int) functionOrdinal);
                 }
 

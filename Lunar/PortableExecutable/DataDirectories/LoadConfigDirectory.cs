@@ -24,7 +24,7 @@ internal sealed class LoadConfigDirectory : DataDirectoryBase
 
             // Parse the exception data
 
-            var exceptionData = Headers.PEHeader!.DllCharacteristics.HasFlag(DllCharacteristics.NoSeh) ? new ExceptionData(-1, -1) : new ExceptionData(loadConfigDirectory.SEHandlerCount, VaToRva(loadConfigDirectory.SEHandlerTable));
+            var exceptionData = Headers.PEHeader!.DllCharacteristics.HasFlag(DllCharacteristics.NoSeh) ? new ExceptionData(-1, -1) : new ExceptionData(loadConfigDirectory.SeHandlerCount, VaToRva(loadConfigDirectory.SeHandlerTable));
 
             // Parse the security cookie
 

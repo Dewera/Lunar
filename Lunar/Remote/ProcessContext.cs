@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using Lunar.Extensions;
 using Lunar.FileResolution;
+using Lunar.Helpers;
 using Lunar.Native;
 using Lunar.Native.Enums;
 using Lunar.Native.PInvoke;
@@ -14,7 +15,6 @@ using Lunar.PortableExecutable.Records;
 using Lunar.Remote.Records;
 using Lunar.Shellcode;
 using Lunar.Shellcode.Records;
-using Lunar.Utilities;
 
 namespace Lunar.Remote;
 
@@ -39,7 +39,7 @@ internal sealed class ProcessContext
         Process = process;
     }
 
-    internal void CallRoutine(IntPtr routineAddress, params dynamic[] arguments)
+    internal void CallRoutine(nint routineAddress, params dynamic[] arguments)
     {
         // Assemble the shellcode used to call the routine
 
@@ -47,22 +47,22 @@ internal sealed class ProcessContext
 
         if (Architecture == Architecture.X86)
         {
-            var descriptor = new CallDescriptor<int>(routineAddress, Array.ConvertAll(arguments, argument => (int) argument), IntPtr.Zero);
+            var descriptor = new CallDescriptor<int>(routineAddress, Array.ConvertAll(arguments, argument => (int) argument), 0);
             shellcodeBytes = Assembler.AssembleCall32(descriptor);
         }
 
         else
         {
-            var descriptor = new CallDescriptor<long>(routineAddress, Array.ConvertAll(arguments, argument => (long) argument), IntPtr.Zero);
+            var descriptor = new CallDescriptor<long>(routineAddress, Array.ConvertAll(arguments, argument => (long) argument), 0);
             shellcodeBytes = Assembler.AssembleCall64(descriptor);
         }
 
         ExecuteShellcode(shellcodeBytes);
     }
 
-    internal T CallRoutine<T>(IntPtr routineAddress, params dynamic[] arguments) where T : unmanaged
+    internal T CallRoutine<T>(nint routineAddress, params dynamic[] arguments) where T : unmanaged
     {
-        var returnSize = typeof(T) == typeof(IntPtr) ? Architecture == Architecture.X86 ? sizeof(int) : sizeof(long) : Unsafe.SizeOf<T>();
+        var returnSize = typeof(T) == typeof(nint) ? Architecture == Architecture.X86 ? sizeof(int) : sizeof(long) : Unsafe.SizeOf<T>();
         var returnAddress = Process.AllocateBuffer(returnSize, ProtectionType.ReadWrite);
 
         try
@@ -87,14 +87,14 @@ internal sealed class ProcessContext
 
             // Read the return value
 
-            if (typeof(T) != typeof(IntPtr))
+            if (typeof(T) != typeof(nint))
             {
                 return Process.ReadStruct<T>(returnAddress);
             }
 
-            var pointer = Architecture == Architecture.X86 ? UnsafeHelpers.WrapPointer(Process.ReadStruct<int>(returnAddress)) : UnsafeHelpers.WrapPointer(Process.ReadStruct<long>(returnAddress));
+            var pointer = Architecture == Architecture.X86 ? Process.ReadStruct<int>(returnAddress) : (nint) Process.ReadStruct<long>(returnAddress);
 
-            return Unsafe.As<IntPtr, T>(ref pointer);
+            return Unsafe.As<nint, T>(ref pointer);
         }
 
         finally
@@ -108,7 +108,7 @@ internal sealed class ProcessContext
         _moduleCache.Clear();
     }
 
-    internal IntPtr GetFunctionAddress(string moduleName, string functionName)
+    internal nint GetFunctionAddress(string moduleName, string functionName)
     {
         var (moduleAddress, peImage) = GetModule(moduleName, null);
         var function = peImage.ExportDirectory.GetExportedFunction(functionName);
@@ -121,7 +121,7 @@ internal sealed class ProcessContext
         return function.ForwarderString is null ? moduleAddress + function.RelativeAddress : ResolveForwardedFunction(function.ForwarderString, null);
     }
 
-    internal IntPtr GetFunctionAddress(string moduleName, int functionOrdinal)
+    internal nint GetFunctionAddress(string moduleName, int functionOrdinal)
     {
         var (moduleAddress, peImage) = GetModule(moduleName, null);
         var function = peImage.ExportDirectory.GetExportedFunction(functionOrdinal);
@@ -134,17 +134,17 @@ internal sealed class ProcessContext
         return function.ForwarderString is null ? moduleAddress + function.RelativeAddress : ResolveForwardedFunction(function.ForwarderString, null);
     }
 
-    internal IntPtr GetModuleAddress(string moduleName)
+    internal nint GetModuleAddress(string moduleName)
     {
         return GetModule(moduleName, null).Address;
     }
 
-    internal IntPtr GetNtdllSymbolAddress(string symbolName)
+    internal nint GetNtdllSymbolAddress(string symbolName)
     {
         return GetModule("ntdll.dll", null).Address + _symbolHandler.GetSymbol(symbolName).RelativeAddress;
     }
 
-    internal void RecordModuleLoad(IntPtr moduleAddress, string moduleFilePath)
+    internal void RecordModuleLoad(nint moduleAddress, string moduleFilePath)
     {
         _moduleCache.TryAdd(Path.GetFileName(moduleFilePath), new Module(moduleAddress, new PeImage(File.ReadAllBytes(moduleFilePath))));
     }
@@ -171,9 +171,9 @@ internal sealed class ProcessContext
 
             // Create a thread to execute the shellcode
 
-            var status = Ntdll.RtlCreateUserThread(Process.SafeHandle, IntPtr.Zero, false, 0, 0, 0, shellcodeAddress, IntPtr.Zero, out var threadHandle, IntPtr.Zero);
+            var status = Ntdll.RtlCreateUserThread(Process.SafeHandle, 0, false, 0, 0, 0, shellcodeAddress, 0, out var threadHandle, 0);
 
-            if (status != NtStatus.Success)
+            if (!status.IsSuccess())
             {
                 throw new Win32Exception(Ntdll.RtlNtStatusToDosError(status));
             }
@@ -204,10 +204,10 @@ internal sealed class ProcessContext
 
         // Query the process for a list of its module addresses
 
-        var moduleAddressListBytes = (stackalloc byte[IntPtr.Size]);
+        var moduleAddressListBytes = (stackalloc byte[nint.Size]);
         var moduleType = Architecture == Architecture.X86 ? ModuleType.X86 : ModuleType.X64;
 
-        if (!Kernel32.K32EnumProcessModulesEx(Process.SafeHandle, out moduleAddressListBytes[0], moduleAddressListBytes.Length, out var sizeNeeded, moduleType))
+        if (!Kernel32.EnumProcessModulesEx(Process.SafeHandle, out moduleAddressListBytes[0], moduleAddressListBytes.Length, out var sizeNeeded, moduleType))
         {
             throw new Win32Exception();
         }
@@ -218,7 +218,7 @@ internal sealed class ProcessContext
 
             moduleAddressListBytes = stackalloc byte[sizeNeeded];
 
-            if (!Kernel32.K32EnumProcessModulesEx(Process.SafeHandle, out moduleAddressListBytes[0], moduleAddressListBytes.Length, out sizeNeeded, moduleType))
+            if (!Kernel32.EnumProcessModulesEx(Process.SafeHandle, out moduleAddressListBytes[0], moduleAddressListBytes.Length, out sizeNeeded, moduleType))
             {
                 throw new Win32Exception();
             }
@@ -228,13 +228,13 @@ internal sealed class ProcessContext
 
         var moduleFilePathBytes = (stackalloc byte[Encoding.Unicode.GetMaxByteCount(Constants.MaxPath)]);
 
-        foreach (var moduleAddress in MemoryMarshal.Cast<byte, IntPtr>(moduleAddressListBytes))
+        foreach (var moduleAddress in MemoryMarshal.Cast<byte, nint>(moduleAddressListBytes))
         {
             moduleFilePathBytes.Clear();
 
             // Retrieve the module file path
 
-            if (!Kernel32.K32GetModuleFileNameEx(Process.SafeHandle, moduleAddress, out moduleFilePathBytes[0], Encoding.Unicode.GetCharCount(moduleFilePathBytes)))
+            if (!Kernel32.GetModuleFileNameEx(Process.SafeHandle, moduleAddress, out moduleFilePathBytes[0], Encoding.Unicode.GetCharCount(moduleFilePathBytes)))
             {
                 throw new Win32Exception();
             }
@@ -261,7 +261,7 @@ internal sealed class ProcessContext
         throw new ApplicationException($"Failed to find the module {moduleName.ToLower()} in the process");
     }
 
-    private IntPtr ResolveForwardedFunction(string forwarderString, string? parentName)
+    private nint ResolveForwardedFunction(string forwarderString, string? parentName)
     {
         while (true)
         {

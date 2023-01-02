@@ -5,23 +5,27 @@ using Microsoft.Win32.SafeHandles;
 
 namespace Lunar.Native.PInvoke;
 
-internal static class Dbghelp
+internal static partial class Dbghelp
 {
-    [DllImport("dbghelp.dll", SetLastError = true)]
-    internal static extern bool SymCleanup(SafeProcessHandle processHandle);
+    [LibraryImport("dbghelp.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool SymCleanup(SafeProcessHandle processHandle);
 
-    [DllImport("dbghelp.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    internal static extern bool SymFromName(SafeProcessHandle processHandle, string name, out SymbolInfo symbolInfo);
+    [LibraryImport("dbghelp.dll", EntryPoint = "SymFromNameW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool SymFromName(SafeProcessHandle processHandle, string name, out SymbolInfo symbolInfo);
 
-    [DllImport("dbghelp.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    internal static extern bool SymInitialize(SafeProcessHandle processHandle, IntPtr searchPath, bool invadeProcess);
+    [LibraryImport("dbghelp.dll", EntryPoint = "SymInitializeW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool SymInitialize(SafeProcessHandle processHandle, nint searchPath, [MarshalAs(UnmanagedType.Bool)] bool invadeProcess);
 
-    [DllImport("dbghelp.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    internal static extern long SymLoadModuleEx(SafeProcessHandle processHandle, IntPtr fileHandle, string imageName, IntPtr moduleName, long dllBase, int dllSize, IntPtr data, int flags);
+    [LibraryImport("dbghelp.dll", EntryPoint = "SymLoadModuleExW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    internal static partial long SymLoadModule(SafeProcessHandle processHandle, nint fileHandle, string imageName, nint moduleName, long dllBase, int dllSize, nint data, int flags);
 
-    [DllImport("dbghelp.dll")]
-    internal static extern SymbolOptions SymSetOptions(SymbolOptions options);
+    [LibraryImport("dbghelp.dll", SetLastError = true)]
+    internal static partial SymbolOptions SymSetOptions(SymbolOptions options);
 
-    [DllImport("dbghelp.dll", SetLastError = true)]
-    internal static extern bool SymUnloadModule64(SafeProcessHandle processHandle, long dllBase);
+    [LibraryImport("dbghelp.dll", EntryPoint = "SymUnloadModule64", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool SymUnloadModule(SafeProcessHandle processHandle, long dllBase);
 }

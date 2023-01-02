@@ -2,13 +2,12 @@
 using System.Runtime.InteropServices;
 using Lunar.Native.PInvoke;
 using Lunar.Native.Structs;
-using Lunar.Utilities;
 
 namespace Lunar.FileResolution;
 
 internal sealed class ApiSetMap
 {
-    private readonly IntPtr _apiSetMapAddress;
+    private readonly nint _apiSetMapAddress;
 
     internal ApiSetMap()
     {
@@ -118,22 +117,15 @@ internal sealed class ApiSetMap
         return null;
     }
 
-    private static IntPtr GetApiSetMapAddress()
+    private static nint GetApiSetMapAddress()
     {
         var pebAddress = Ntdll.RtlGetCurrentPeb();
 
         if (Environment.Is64BitProcess)
         {
-            var peb = Marshal.PtrToStructure<Peb64>(pebAddress);
-
-            return UnsafeHelpers.WrapPointer(peb.ApiSetMap);
+            return (nint) Marshal.PtrToStructure<Peb64>(pebAddress).ApiSetMap;
         }
 
-        else
-        {
-            var peb = Marshal.PtrToStructure<Peb32>(pebAddress);
-
-            return UnsafeHelpers.WrapPointer(peb.ApiSetMap);
-        }
+        return Marshal.PtrToStructure<Peb32>(pebAddress).ApiSetMap;
     }
 }

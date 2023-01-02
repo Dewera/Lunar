@@ -1,4 +1,4 @@
-﻿namespace Lunar.Utilities;
+﻿namespace Lunar.Helpers;
 
 internal static class Executor
 {

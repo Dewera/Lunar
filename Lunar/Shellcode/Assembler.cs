@@ -44,7 +44,7 @@ internal static class Assembler
 
         shellcode.AddRange(new byte[] { 0xFF, 0xD0 });
 
-        if (descriptor.ReturnAddress != IntPtr.Zero)
+        if (descriptor.ReturnAddress != 0)
         {
             // mov [ReturnAddress], eax
 
@@ -265,18 +265,18 @@ internal static class Assembler
         // mov rax, Address
 
         shellcode.AddRange(new byte[] { 0x48, 0xB8 });
-        shellcode.AddRange(BitConverter.GetBytes((long) descriptor.Address));
+        shellcode.AddRange(BitConverter.GetBytes(descriptor.Address));
 
         // call rax
 
         shellcode.AddRange(new byte[] { 0xFF, 0xD0 });
 
-        if (descriptor.ReturnAddress != IntPtr.Zero)
+        if (descriptor.ReturnAddress != 0)
         {
             // mov [ReturnAddress], rax
 
             shellcode.AddRange(new byte[] { 0x48, 0xA3 });
-            shellcode.AddRange(BitConverter.GetBytes((long) descriptor.ReturnAddress));
+            shellcode.AddRange(BitConverter.GetBytes(descriptor.ReturnAddress));
         }
 
         // xor eax, eax

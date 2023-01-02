@@ -2,4 +2,4 @@
 
 namespace Lunar.Remote.Records;
 
-internal sealed record Module(IntPtr Address, PeImage PeImage);
+internal sealed record Module(nint Address, PeImage PeImage);

@@ -13,7 +13,7 @@ internal sealed class FileResolver
     internal FileResolver(Process process, string? rootDirectoryPath)
     {
         _architecture = process.GetArchitecture();
-        _processDirectoryPath = Path.GetDirectoryName(process.MainModule!.FileName!)!;
+        _processDirectoryPath = Path.GetDirectoryName(process.MainModule!.FileName)!;
         _rootDirectoryPath = rootDirectoryPath;
     }
 

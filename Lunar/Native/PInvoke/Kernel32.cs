@@ -4,35 +4,39 @@ using Microsoft.Win32.SafeHandles;
 
 namespace Lunar.Native.PInvoke;
 
-internal static class Kernel32
+internal static partial class Kernel32
 {
-    [DllImport("kernel32.dll")]
-    internal static extern SafeProcessHandle GetCurrentProcess();
+    [LibraryImport("kernel32.dll", EntryPoint = "K32EnumProcessModulesEx", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool EnumProcessModulesEx(SafeProcessHandle processHandle, out byte bytes, int size, out int sizeNeeded, ModuleType moduleType);
 
-    [DllImport("kernel32.dll", SetLastError = true)]
-    internal static extern bool IsWow64Process(SafeProcessHandle processHandle, out bool isWow64Process);
+    [LibraryImport("kernel32.dll", EntryPoint = "K32GetModuleFileNameExW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool GetModuleFileNameEx(SafeProcessHandle processHandle, nint address, out byte bytes, int size);
 
-    [DllImport("kernel32.dll", SetLastError = true)]
-    internal static extern bool K32EnumProcessModulesEx(SafeProcessHandle processHandle, out byte bytes, int size, out int sizeNeeded, ModuleType moduleType);
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool IsWow64Process(SafeProcessHandle processHandle, [MarshalAs(UnmanagedType.Bool)] out bool isWow64Process);
 
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    internal static extern bool K32GetModuleFileNameEx(SafeProcessHandle processHandle, IntPtr address, out byte bytes, int size);
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool ReadProcessMemory(SafeProcessHandle processHandle, nint address, out byte bytes, nint size, nint bytesReadCount);
 
-    [DllImport("kernel32.dll", SetLastError = true)]
-    internal static extern bool ReadProcessMemory(SafeProcessHandle processHandle, IntPtr address, out byte bytes, nint size, IntPtr bytesReadCount);
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    internal static partial nint VirtualAllocEx(SafeProcessHandle processHandle, nint address, nint size, AllocationType allocationType, ProtectionType protectionType);
 
-    [DllImport("kernel32.dll", SetLastError = true)]
-    internal static extern IntPtr VirtualAllocEx(SafeProcessHandle processHandle, IntPtr address, nint size, AllocationType allocationType, ProtectionType protectionType);
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool VirtualFreeEx(SafeProcessHandle processHandle, nint address, nint size, FreeType freeType);
 
-    [DllImport("kernel32.dll", SetLastError = true)]
-    internal static extern bool VirtualFreeEx(SafeProcessHandle processHandle, IntPtr address, nint size, FreeType freeType);
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool VirtualProtectEx(SafeProcessHandle processHandle, nint address, nint size, ProtectionType protectionType, out ProtectionType oldProtectionType);
 
-    [DllImport("kernel32.dll", SetLastError = true)]
-    internal static extern bool VirtualProtectEx(SafeProcessHandle processHandle, IntPtr address, nint size, ProtectionType protectionType, out ProtectionType oldProtectionType);
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    internal static partial int WaitForSingleObject(SafeHandle objectHandle, int milliseconds);
 
-    [DllImport("kernel32.dll", SetLastError = true)]
-    internal static extern int WaitForSingleObject(SafeHandle objectHandle, int milliseconds);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    internal static extern bool WriteProcessMemory(SafeProcessHandle processHandle, IntPtr address, in byte bytes, nint size, IntPtr bytesWrittenCount);
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool WriteProcessMemory(SafeProcessHandle processHandle, nint address, in byte bytes, nint size, nint bytesWrittenCount);
 }

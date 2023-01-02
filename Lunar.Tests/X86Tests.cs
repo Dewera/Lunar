@@ -36,7 +36,7 @@ public sealed class X86Tests : IDisposable
         var libraryMapper = new LibraryMapper(_process, Path.Combine(_testBinaryDirectoryPath, dllName));
         libraryMapper.MapLibrary();
 
-        Assert.NotEqual(libraryMapper.DllBaseAddress, IntPtr.Zero);
+        Assert.NotEqual(0, libraryMapper.DllBaseAddress);
     }
 
     [Theory]
@@ -50,6 +50,6 @@ public sealed class X86Tests : IDisposable
         libraryMapper.MapLibrary();
         libraryMapper.UnmapLibrary();
 
-        Assert.Equal(libraryMapper.DllBaseAddress, IntPtr.Zero);
+        Assert.Equal(0, libraryMapper.DllBaseAddress);
     }
 }

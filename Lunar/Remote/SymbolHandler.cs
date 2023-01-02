@@ -7,6 +7,7 @@ using Lunar.Native.Enums;
 using Lunar.Native.PInvoke;
 using Lunar.Native.Structs;
 using Lunar.Remote.Records;
+using Microsoft.Win32.SafeHandles;
 
 namespace Lunar.Remote;
 
@@ -28,60 +29,59 @@ internal sealed class SymbolHandler
             return symbol;
         }
 
+        var currentProcessHandle = new SafeProcessHandle(-1, false);
+
         // Initialise a native symbol handler
 
-        Dbghelp.SymSetOptions(SymbolOptions.UndecorateName);
-
-        if (!Dbghelp.SymInitialize(Kernel32.GetCurrentProcess(), IntPtr.Zero, false))
+        if (!Dbghelp.SymSetOptions(SymbolOptions.UndecorateName).HasFlag(SymbolOptions.UndecorateName))
         {
             throw new Win32Exception();
         }
 
-        try
+        if (!Dbghelp.SymInitialize(currentProcessHandle, 0, false))
         {
-            const int pseudoDllAddress = 0x1000;
-
-            // Load the symbol file into the symbol handler
-
-            var symbolFileSize = new FileInfo(_pdbFilePath).Length;
-            var symbolTableAddress = Dbghelp.SymLoadModuleEx(Kernel32.GetCurrentProcess(), IntPtr.Zero, _pdbFilePath, IntPtr.Zero, pseudoDllAddress, (int) symbolFileSize, IntPtr.Zero, 0);
-
-            if (symbolTableAddress == 0)
-            {
-                throw new Win32Exception();
-            }
-
-            try
-            {
-                // Initialise a buffer to store the symbol information
-
-                var symbolInformationBytes = (stackalloc byte[(Unsafe.SizeOf<SymbolInfo>() + sizeof(char) * Constants.MaxSymbolName + sizeof(long) - 1) / sizeof(long)]);
-                MemoryMarshal.Write(symbolInformationBytes, ref Unsafe.AsRef(new SymbolInfo(Unsafe.SizeOf<SymbolInfo>(), 0, Constants.MaxSymbolName)));
-
-                // Retrieve the symbol information
-
-                if (!Dbghelp.SymFromName(Kernel32.GetCurrentProcess(), symbolName, out Unsafe.As<byte, SymbolInfo>(ref symbolInformationBytes[0])))
-                {
-                    throw new Win32Exception();
-                }
-
-                var symbolInformation = MemoryMarshal.Read<SymbolInfo>(symbolInformationBytes);
-                symbol = new Symbol((int) (symbolInformation.Address - pseudoDllAddress));
-                _symbolCache.Add(symbolName, symbol);
-
-                return symbol;
-            }
-
-            finally
-            {
-                Dbghelp.SymUnloadModule64(Kernel32.GetCurrentProcess(), symbolTableAddress);
-            }
+            throw new Win32Exception();
         }
 
-        finally
+        // Load the PDB into the symbol handler
+
+        const int pseudoDllAddress = 0x1000;
+
+        var pdbFileSize = new FileInfo(_pdbFilePath).Length;
+        var symbolTableAddress = Dbghelp.SymLoadModule(currentProcessHandle, 0, _pdbFilePath, 0, pseudoDllAddress, (int) pdbFileSize, 0, 0);
+
+        if (symbolTableAddress == 0)
         {
-            Dbghelp.SymCleanup(Kernel32.GetCurrentProcess());
+            throw new Win32Exception();
         }
+
+        // Initialise a buffer to store the symbol information
+
+        var symbolInformationBytes = (stackalloc byte[(Unsafe.SizeOf<SymbolInfo>() + sizeof(char) * Constants.MaxSymbolName + sizeof(long) - 1) / sizeof(long)]);
+        MemoryMarshal.Write(symbolInformationBytes, ref Unsafe.AsRef(new SymbolInfo(Unsafe.SizeOf<SymbolInfo>(), 0, Constants.MaxSymbolName)));
+
+        // Retrieve the symbol information
+
+        if (!Dbghelp.SymFromName(currentProcessHandle, symbolName, out Unsafe.As<byte, SymbolInfo>(ref symbolInformationBytes[0])))
+        {
+            throw new Win32Exception();
+        }
+
+        var symbolInformation = MemoryMarshal.Read<SymbolInfo>(symbolInformationBytes);
+        symbol = new Symbol((int) (symbolInformation.Address - pseudoDllAddress));
+        _symbolCache.Add(symbolName, symbol);
+
+        if (!Dbghelp.SymUnloadModule(currentProcessHandle, symbolTableAddress))
+        {
+            throw new Win32Exception();
+        }
+
+        if (!Dbghelp.SymCleanup(currentProcessHandle))
+        {
+            throw new Win32Exception();
+        }
+
+        return symbol;
     }
 
     private static string FindOrDownloadSymbolFile(Architecture architecture)

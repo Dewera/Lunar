@@ -72,18 +72,7 @@ internal sealed class ActivationContext
             // Search for the directory that holds the dependency
 
             var dependencyVersion = new Version(version);
-
-            ManifestDirectory? matchingDirectory;
-
-            if (dependencyVersion.Build == 0 && dependencyVersion.Revision == 0)
-            {
-                matchingDirectory = matchingDirectories.Where(directory => directory.Version.Major == dependencyVersion.Major && directory.Version.Minor == dependencyVersion.Minor).MaxBy(directory => directory.Version);
-            }
-
-            else
-            {
-                matchingDirectory = matchingDirectories.FirstOrDefault(directory => directory.Version == dependencyVersion);
-            }
+            var matchingDirectory = dependencyVersion is { Build: 0, Revision: 0 } ? matchingDirectories.Where(directory => directory.Version.Major == dependencyVersion.Major && directory.Version.Minor == dependencyVersion.Minor).MaxBy(directory => directory.Version) : matchingDirectories.FirstOrDefault(directory => directory.Version == dependencyVersion);
 
             if (matchingDirectory is null)
             {
