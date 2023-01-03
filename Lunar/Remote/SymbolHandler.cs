@@ -71,11 +71,6 @@ internal sealed class SymbolHandler
         symbol = new Symbol((int) (symbolInformation.Address - pseudoDllAddress));
         _symbolCache.Add(symbolName, symbol);
 
-        if (!Dbghelp.SymUnloadModule(currentProcessHandle, symbolTableAddress))
-        {
-            throw new Win32Exception();
-        }
-
         if (!Dbghelp.SymCleanup(currentProcessHandle))
         {
             throw new Win32Exception();
@@ -102,7 +97,7 @@ internal sealed class SymbolHandler
 
         // Check if the correct PDB version is already cached
 
-        var pdbFilePath = Path.Combine(cacheDirectory.FullName, $"{pdbData.Path}-{pdbData.Guid:N}.pdb");
+        var pdbFilePath = Path.Combine(cacheDirectory.FullName, $"{pdbData.Path.Replace(".pdb", string.Empty)}-{pdbData.Guid:N}.pdb");
         var pdbFile = new FileInfo(pdbFilePath);
 
         if (pdbFile.Exists && pdbFile.Length != 0)

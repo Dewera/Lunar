@@ -1,7 +1,5 @@
 ## Lunar
 
-![](https://github.com/Dewera/Lunar/workflows/Continuous%20Integration/badge.svg)
-
 A lightweight native DLL mapping library that supports mapping directly from memory
 
 ---

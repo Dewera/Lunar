@@ -24,8 +24,4 @@ internal static partial class Dbghelp
 
     [LibraryImport("dbghelp.dll", SetLastError = true)]
     internal static partial SymbolOptions SymSetOptions(SymbolOptions options);
-
-    [LibraryImport("dbghelp.dll", EntryPoint = "SymUnloadModule64", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static partial bool SymUnloadModule(SafeProcessHandle processHandle, long dllBase);
 }
