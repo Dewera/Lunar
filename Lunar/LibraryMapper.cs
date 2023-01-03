@@ -758,33 +758,34 @@ public sealed class LibraryMapper
         }
 
         var tlsBitmapAddress = _processContext.GetNtdllSymbolAddress("LdrpTlsBitmap");
-        var tlsBitmapBufferSizeAddress = _processContext.GetNtdllSymbolAddress("LdrpActualBitmapSize");
 
         using var pebLock = new PebLock(_processContext);
 
-        // Read the TLS bitmap buffer
-
-        nint bitmapBufferAddress;
-
         if (_processContext.Architecture == Architecture.X86)
         {
+            // Read the TLS bitmap buffer
+
             var tlsBitmap = _processContext.Process.ReadStruct<RtlBitmap32>(tlsBitmapAddress);
-            bitmapBufferAddress = tlsBitmap.Buffer;
+            var tlsBitmapBuffer = _processContext.Process.ReadSpan<byte>(tlsBitmap.Buffer, tlsBitmap.SizeOfBitmap / 8);
+
+            // Clear the TLS index
+
+            BitmapManager.ClearBit(ref tlsBitmapBuffer, _tlsData.Index);
+            _processContext.Process.WriteSpan(tlsBitmap.Buffer, tlsBitmapBuffer);
         }
 
         else
         {
+            // Read the TLS bitmap buffer
+
             var tlsBitmap = _processContext.Process.ReadStruct<RtlBitmap64>(tlsBitmapAddress);
-            bitmapBufferAddress = (nint) tlsBitmap.Buffer;
+            var tlsBitmapBuffer = _processContext.Process.ReadSpan<byte>((nint) tlsBitmap.Buffer, tlsBitmap.SizeOfBitmap / 8);
+
+            // Clear the TLS index
+
+            BitmapManager.ClearBit(ref tlsBitmapBuffer, _tlsData.Index);
+            _processContext.Process.WriteSpan((nint) tlsBitmap.Buffer, tlsBitmapBuffer);
         }
-
-        var tlsBitmapBufferSize = _processContext.Process.ReadStruct<int>(tlsBitmapBufferSizeAddress);
-        var tlsBitmapBuffer = _processContext.Process.ReadSpan<byte>(bitmapBufferAddress, tlsBitmapBufferSize);
-
-        // Clear the TLS index
-
-        BitmapManager.ClearBit(ref tlsBitmapBuffer, _tlsData.Index);
-        _processContext.Process.WriteSpan(bitmapBufferAddress, tlsBitmapBuffer);
     }
 
     private void RelocateImage()
