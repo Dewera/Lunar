@@ -64,8 +64,8 @@ internal sealed class ResourceDirectory : DataDirectoryBase
 
             // Sanitise the manifest to ensure it can be parsed correctly
 
-            manifest = Regex.Replace(manifest, @"\""\""([\d\w\.]*)\""\""", @"""$1""");
-            manifest = Regex.Replace(manifest, @"^\s+$[\r\n]*", string.Empty, RegexOptions.Multiline);
+            manifest = Regex.Replace(manifest, @"\""\""([\d\w\.]*)\""\""", @"""$1""", RegexOptions.Compiled | RegexOptions.Multiline);
+            manifest = Regex.Replace(manifest, @"^\s+$[\r\n]*", string.Empty, RegexOptions.Compiled | RegexOptions.Multiline);
             manifest = manifest.Replace("SXS_ASSEMBLY_NAME", @"""""");
             manifest = manifest.Replace("SXS_ASSEMBLY_VERSION", @"""""");
             manifest = manifest.Replace("SXS_PROCESSOR_ARCHITECTURE", @"""""");

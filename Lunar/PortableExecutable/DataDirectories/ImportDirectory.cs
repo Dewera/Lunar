@@ -71,7 +71,6 @@ internal sealed class ImportDirectory : DataDirectoryBase
                     var functionOrdinal = functionThunk & ushort.MaxValue;
                     yield return new ImportedFunction(null, functionOffset, functionOrdinal);
                 }
-
                 else
                 {
                     // Read the function ordinal
@@ -110,7 +109,6 @@ internal sealed class ImportDirectory : DataDirectoryBase
                     var functionOrdinal = functionThunk & ushort.MaxValue;
                     yield return new ImportedFunction(null, functionOffset, (int) functionOrdinal);
                 }
-
                 else
                 {
                     // Read the function ordinal

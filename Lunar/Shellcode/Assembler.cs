@@ -10,7 +10,48 @@ internal static class Assembler
     {
         var shellcode = new List<byte>();
 
-        foreach (var argument in descriptor.Arguments.Reverse())
+        if (descriptor.CallingConvention == CallingConvention.FastCall)
+        {
+            if (descriptor.Arguments.Count > 0)
+            {
+                var argument = descriptor.Arguments[0];
+
+                if (argument == 0)
+                {
+                    // xor ecx, ecx
+
+                    shellcode.AddRange(new byte[] { 0x31, 0xC9 });
+                }
+                else
+                {
+                    // mov ecx, argument
+
+                    shellcode.Add(0xB9);
+                    shellcode.AddRange(BitConverter.GetBytes(argument));
+                }
+            }
+
+            if (descriptor.Arguments.Count > 1)
+            {
+                var argument = descriptor.Arguments[1];
+
+                if (argument == 0)
+                {
+                    // xor edx, edx
+
+                    shellcode.AddRange(new byte[] { 0x31, 0xD2 });
+                }
+                else
+                {
+                    // mov edx, argument
+
+                    shellcode.Add(0xBA);
+                    shellcode.AddRange(BitConverter.GetBytes(argument));
+                }
+            }
+        }
+
+        foreach (var argument in descriptor.Arguments.Skip(descriptor.CallingConvention == CallingConvention.FastCall ? 2 : 0).Reverse())
         {
             switch (argument)
             {
@@ -22,7 +63,6 @@ internal static class Assembler
 
                     break;
                 }
-
                 default:
                 {
                     // push argument
@@ -86,7 +126,6 @@ internal static class Assembler
 
                     break;
                 }
-
                 case >= int.MinValue and <= uint.MaxValue:
                 {
                     // mov ecx, argument
@@ -96,7 +135,6 @@ internal static class Assembler
 
                     break;
                 }
-
                 default:
                 {
                     // mov rcx, argument
@@ -123,7 +161,6 @@ internal static class Assembler
 
                     break;
                 }
-
                 case >= int.MinValue and <= uint.MaxValue:
                 {
                     // mov edx, argument
@@ -133,7 +170,6 @@ internal static class Assembler
 
                     break;
                 }
-
                 default:
                 {
                     // mov rdx, argument
@@ -160,7 +196,6 @@ internal static class Assembler
 
                     break;
                 }
-
                 case >= int.MinValue and <= uint.MaxValue:
                 {
                     // mov r8d, argument
@@ -170,7 +205,6 @@ internal static class Assembler
 
                     break;
                 }
-
                 default:
                 {
                     // mov r8, argument
@@ -197,7 +231,6 @@ internal static class Assembler
 
                     break;
                 }
-
                 case >= int.MinValue and <= uint.MaxValue:
                 {
                     // mov r9d, argument
@@ -207,7 +240,6 @@ internal static class Assembler
 
                     break;
                 }
-
                 default:
                 {
                     // mov r9, argument
@@ -234,7 +266,6 @@ internal static class Assembler
 
                         break;
                     }
-
                     case >= int.MinValue and <= int.MaxValue:
                     {
                         // push argument
@@ -244,7 +275,6 @@ internal static class Assembler
 
                         break;
                     }
-
                     default:
                     {
                         // mov rax, argument

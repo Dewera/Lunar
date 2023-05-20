@@ -32,7 +32,6 @@ internal sealed class LoadConfigDirectory : DataDirectoryBase
 
             return new LoadConfigData(exceptionData, loadConfigDirectory.GuardFlags, securityCookie);
         }
-
         else
         {
             // Read the load config directory

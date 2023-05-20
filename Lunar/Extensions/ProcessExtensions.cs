@@ -50,19 +50,6 @@ internal static class ProcessExtensions
         return oldProtectionType;
     }
 
-    internal static T QueryInformation<T>(this Process process, ProcessInformationType informationType) where T : unmanaged
-    {
-        var informationBytes = (stackalloc byte[Unsafe.SizeOf<T>()]);
-        var status = Ntdll.NtQueryInformationProcess(process.SafeHandle, informationType, out informationBytes[0], informationBytes.Length, 0);
-
-        if (!status.IsSuccess())
-        {
-            throw new Win32Exception(Ntdll.RtlNtStatusToDosError(status));
-        }
-
-        return MemoryMarshal.Read<T>(informationBytes);
-    }
-
     internal static Span<T> ReadSpan<T>(this Process process, nint address, int elements) where T : unmanaged
     {
         var spanBytes = new byte[Unsafe.SizeOf<T>() * elements];

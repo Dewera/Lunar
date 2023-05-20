@@ -21,7 +21,6 @@ namespace Lunar.Remote;
 internal sealed class ProcessContext
 {
     internal Architecture Architecture { get; }
-    internal HeapManager HeapManager { get; }
     internal Process Process { get; }
 
     private readonly ApiSetMap _apiSetMap;
@@ -35,11 +34,10 @@ internal sealed class ProcessContext
         _symbolHandler = new SymbolHandler(process.GetArchitecture());
 
         Architecture = process.GetArchitecture();
-        HeapManager = new HeapManager(this, process);
         Process = process;
     }
 
-    internal void CallRoutine(nint routineAddress, params dynamic[] arguments)
+    internal void CallRoutine(nint routineAddress, CallingConvention callingConvention, params dynamic[] arguments)
     {
         // Assemble the shellcode used to call the routine
 
@@ -47,20 +45,19 @@ internal sealed class ProcessContext
 
         if (Architecture == Architecture.X86)
         {
-            var descriptor = new CallDescriptor<int>(routineAddress, Array.ConvertAll(arguments, argument => (int) argument), 0);
+            var descriptor = new CallDescriptor<int>(routineAddress, Array.ConvertAll(arguments, argument => (int) argument), callingConvention, 0);
             shellcodeBytes = Assembler.AssembleCall32(descriptor);
         }
-
         else
         {
-            var descriptor = new CallDescriptor<long>(routineAddress, Array.ConvertAll(arguments, argument => (long) argument), 0);
+            var descriptor = new CallDescriptor<long>(routineAddress, Array.ConvertAll(arguments, argument => (long) argument), callingConvention, 0);
             shellcodeBytes = Assembler.AssembleCall64(descriptor);
         }
 
         ExecuteShellcode(shellcodeBytes);
     }
 
-    internal T CallRoutine<T>(nint routineAddress, params dynamic[] arguments) where T : unmanaged
+    internal T CallRoutine<T>(nint routineAddress, CallingConvention callingConvention, params dynamic[] arguments) where T : unmanaged
     {
         var returnSize = typeof(T) == typeof(nint) ? Architecture == Architecture.X86 ? sizeof(int) : sizeof(long) : Unsafe.SizeOf<T>();
         var returnAddress = Process.AllocateBuffer(returnSize, ProtectionType.ReadWrite);
@@ -73,13 +70,12 @@ internal sealed class ProcessContext
 
             if (Architecture == Architecture.X86)
             {
-                var descriptor = new CallDescriptor<int>(routineAddress, Array.ConvertAll(arguments, argument => (int) argument), returnAddress);
+                var descriptor = new CallDescriptor<int>(routineAddress, Array.ConvertAll(arguments, argument => (int) argument), callingConvention, returnAddress);
                 shellcodeBytes = Assembler.AssembleCall32(descriptor);
             }
-
             else
             {
-                var descriptor = new CallDescriptor<long>(routineAddress, Array.ConvertAll(arguments, argument => (long) argument), returnAddress);
+                var descriptor = new CallDescriptor<long>(routineAddress, Array.ConvertAll(arguments, argument => (long) argument), callingConvention, returnAddress);
                 shellcodeBytes = Assembler.AssembleCall64(descriptor);
             }
 
@@ -186,7 +182,6 @@ internal sealed class ProcessContext
                 }
             }
         }
-
         finally
         {
             Executor.IgnoreExceptions(() => Process.FreeBuffer(shellcodeAddress));
@@ -202,7 +197,7 @@ internal sealed class ProcessContext
             return module;
         }
 
-        // Query the process for a list of its module addresses
+        // Query the process for its module address list
 
         var moduleAddressListBytes = (stackalloc byte[nint.Size]);
         var moduleType = Architecture == Architecture.X86 ? ModuleType.X86 : ModuleType.X64;
@@ -277,7 +272,6 @@ internal sealed class ProcessContext
                 var functionOrdinal = int.Parse(forwardedData[1].Replace("#", string.Empty));
                 forwardedFunction = peImage.ExportDirectory.GetExportedFunction(functionOrdinal);
             }
-
             else
             {
                 forwardedFunction = peImage.ExportDirectory.GetExportedFunction(forwardedData[1]);

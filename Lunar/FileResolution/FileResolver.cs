@@ -37,7 +37,7 @@ internal sealed class FileResolver
             return sxsFilePath;
         }
 
-        // Search the root directory of the DLL
+        // Search the DLL root directory
 
         if (_rootDirectoryPath is not null)
         {

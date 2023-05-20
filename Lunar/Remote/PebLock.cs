@@ -1,4 +1,6 @@
-﻿namespace Lunar.Remote;
+﻿using System.Runtime.InteropServices;
+
+namespace Lunar.Remote;
 
 internal sealed class PebLock : IDisposable
 {
@@ -7,11 +9,11 @@ internal sealed class PebLock : IDisposable
     internal PebLock(ProcessContext processContext)
     {
         _processContext = processContext;
-        _processContext.CallRoutine(_processContext.GetFunctionAddress("ntdll.dll", "RtlAcquirePebLock"));
+        _processContext.CallRoutine(_processContext.GetFunctionAddress("ntdll.dll", "RtlAcquirePebLock"), CallingConvention.StdCall);
     }
 
     public void Dispose()
     {
-        _processContext.CallRoutine(_processContext.GetFunctionAddress("ntdll.dll", "RtlReleasePebLock"));
+        _processContext.CallRoutine(_processContext.GetFunctionAddress("ntdll.dll", "RtlReleasePebLock"), CallingConvention.StdCall);
     }
 }

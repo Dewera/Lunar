@@ -53,7 +53,6 @@ internal sealed class ExportDirectory : DataDirectoryBase
             {
                 high = middle - 1;
             }
-
             else
             {
                 low = middle + 1;

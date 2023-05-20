@@ -16,7 +16,7 @@ internal sealed class ApiSetMap
 
     internal string? ResolveApiSetName(string apiSetName, string? parentName)
     {
-        // Read the namespace of the API set
+        // Read the API set namespace
 
         var @namespace = Marshal.PtrToStructure<ApiSetNamespace>(_apiSetMapAddress);
 
@@ -107,7 +107,6 @@ internal sealed class ApiSetMap
             {
                 high = middle - 1;
             }
-
             else
             {
                 low = middle + 1;

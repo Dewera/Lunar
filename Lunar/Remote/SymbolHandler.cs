@@ -75,7 +75,6 @@ internal sealed class SymbolHandler
 
             return symbol;
         }
-
         finally
         {
             Dbghelp.SymCleanup(currentProcessHandle);

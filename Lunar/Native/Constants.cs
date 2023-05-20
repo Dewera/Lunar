@@ -9,6 +9,4 @@ internal static class Constants
     internal const int MaxSymbolName = 0x7D0;
     internal const int ShadowSpaceSize = 0x28;
     internal const int SharedUserDataAddress = 0x7FFE0000;
-    internal const int TlsBitmapIncrement32 = 0x27;
-    internal const int TlsBitmapIncrement64 = 0x1F;
 }

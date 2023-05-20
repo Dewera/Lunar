@@ -1,3 +1,5 @@
-﻿namespace Lunar.Shellcode.Records;
+﻿using System.Runtime.InteropServices;
 
-internal sealed record CallDescriptor<T>(nint Address, IList<T> Arguments, nint ReturnAddress);
+namespace Lunar.Shellcode.Records;
+
+internal sealed record CallDescriptor<T>(nint Address, IList<T> Arguments, CallingConvention CallingConvention, nint ReturnAddress);

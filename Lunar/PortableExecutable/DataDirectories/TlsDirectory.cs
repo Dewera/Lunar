@@ -42,7 +42,6 @@ internal sealed class TlsDirectory : DataDirectoryBase
                 yield return new TlsCallback(VaToRva(callbackAddress));
             }
         }
-
         else
         {
             // Read the TLS directory
