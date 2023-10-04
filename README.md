@@ -2,6 +2,12 @@
 
 A lightweight native DLL mapping library that supports mapping directly from memory
 
+## Deprecation Notice
+
+Please checkout https://github.com/jdewera/lunar for a continuation of this project.
+
+As of **10/2023** this repository is deprecated and the project is now being maintained under a new account/repository due to some issues encountered with this account. There are some minor differences between the versions for maintainabiltiy sake (prefer private ntdll functions instead of manual setup) but otherwise they should be compatible.
+
 ---
 
 ### Notable features
